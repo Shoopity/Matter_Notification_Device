@@ -47,10 +47,23 @@ To compile these projects, you need to install the **ESP-IDF** toolchain and the
 
 ---
 
-## Building and Flashing
+## Building and Flashing (PlatformIO & ESP-IDF CLI)
 
+You can compile and upload this project either using the **PlatformIO Extension** in VS Code or the standard **ESP-IDF CLI**.
+
+### Option A: Using the PlatformIO Extension (Recommended for VS Code users)
+1. Open the project root folder `Matter_Notification_Device` in VS Code.
+2. The PlatformIO extension will auto-detect the two sub-projects (`button_device` and `led_device`) via their respective `platformio.ini` configuration files.
+3. In the PlatformIO sidebar or status bar:
+   * Select the environment for the project you want to build (e.g., `env:esp32-c6-devkitm-1` under `button_device` or `led_device`).
+   * Click the **Build** (checkmark) button to compile the firmware.
+   * Connect your ESP32-C6 board via USB and click the **Upload** (arrow) button to flash the board.
+   * Click the **Serial Monitor** (plug) button to view logs.
+
+*Note: Since PlatformIO compiles using the ESP-IDF framework, ensure you have set up your environment variables for `esp-matter` in the shell or terminal if compile errors arise. PlatformIO will automatically fetch standard components, but custom SDK paths must be accessible.*
+
+### Option B: Using the ESP-IDF Command Line Interface (CLI)
 Follow these steps for **each** project (`button_device` and `led_device`):
-
 1. Navigate to the project directory:
    ```bash
    cd button_device   # Or cd led_device
@@ -67,18 +80,19 @@ Follow these steps for **each** project (`button_device` and `led_device`):
    ```bash
    idf.py -p COMx flash monitor
    ```
-   *Note: To exit the monitor, press `Ctrl + ]`.*
+   *To exit the monitor, press `Ctrl + ]`.*
 
 ---
 
 ## Step 1: Commissioning into Google Home
 
-Since both devices support **Multi-Admin**, you can easily pair them with Google Home for voice control and automation support, while reserving the local binding for direct, direct-to-device communication.
+Since both devices support **Multi-Admin**, you can easily pair them with Google Home for voice control and automation support, while reserving the local binding for direct, device-to-device communication.
 
 1. Power on your device.
-2. Open the **Google Home** app on your smartphone (make sure Bluetooth and IPv6 are active on your network, and your phone is connected to the eero's Wi-Fi network).
-3. Tap **+ Add** -> **New Device** -> **Matter-enabled device**.
-4. Scan the QR code or enter the setup code printed in the device logs during startup (search the serial monitor output for the setup passcode or QR code URL).
+2. Open the **Google Home** app on your smartphone (ensure Bluetooth and IPv6 are active on your network, and your phone is connected to the eero's Wi-Fi network).
+3. Tap **+ Add** -> **Scan QR code**.
+4. Scan the QR code URL generated in the device logs during startup (printed in the console logs/serial monitor output when the device boots).
+   * *If the QR code does not scan, you can choose "Set up without QR code" and enter the 11-digit numeric passcode printed in the serial monitor logs.*
 5. Name the devices (e.g., "Notification Light" and "Notification Button").
 6. You can now use Google Assistant: *"Hey Google, turn on the Notification Light"* to trigger the blinking notification.
 
