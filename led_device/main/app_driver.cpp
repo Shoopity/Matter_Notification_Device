@@ -3,9 +3,13 @@
 #include <freertos/task.h>
 #include <led_strip.h>
 #include <esp_matter.h>
+#include <driver/gpio.h>
 
 #define LED_STRIP_GPIO GPIO_NUM_8
 #define LED_STRIP_NUM_LEDS 8 // Adjustable for your strip length
+
+// On-board LED GPIO definition (change to match your board, e.g. GPIO_NUM_15 for FireBeetle C6, or set to GPIO_NUM_NC if none)
+#define SYSTEM_LED_GPIO GPIO_NUM_15 
 
 static const char *TAG = "app_driver";
 static led_strip_handle_t g_led_strip = NULL;
@@ -26,10 +30,22 @@ static void led_blink_task(void *pvParameters)
             led_strip_set_pixel(g_led_strip, j, 0, 180, 255);
         }
         led_strip_refresh(g_led_strip);
+
+        // Turn on-board GPIO LED ON
+        if (SYSTEM_LED_GPIO != GPIO_NUM_NC) {
+            gpio_set_level(SYSTEM_LED_GPIO, 1);
+        }
+
         vTaskDelay(pdMS_TO_TICKS(250));
 
         // Turn LEDs OFF
         led_strip_clear(g_led_strip);
+
+        // Turn on-board GPIO LED OFF
+        if (SYSTEM_LED_GPIO != GPIO_NUM_NC) {
+            gpio_set_level(SYSTEM_LED_GPIO, 0);
+        }
+
         vTaskDelay(pdMS_TO_TICKS(250));
     }
 
@@ -85,10 +101,18 @@ esp_err_t app_driver_init(uint16_t light_endpoint_id)
         ESP_LOGE(TAG, "Failed to initialize LED strip, err: %d", err);
         return err;
     }
-
     // Clear strip
     led_strip_clear(g_led_strip);
     ESP_LOGI(TAG, "WS2812 LED strip driver initialized on GPIO %d.", LED_STRIP_GPIO);
+
+    // Initialize standard GPIO LED if configured
+    if (SYSTEM_LED_GPIO != GPIO_NUM_NC) {
+        gpio_reset_pin(SYSTEM_LED_GPIO);
+        gpio_set_direction(SYSTEM_LED_GPIO, GPIO_MODE_OUTPUT);
+        gpio_set_level(SYSTEM_LED_GPIO, 0);
+        ESP_LOGI(TAG, "On-board GPIO LED initialized on GPIO %d.", SYSTEM_LED_GPIO);
+    }
+
     return ESP_OK;
 }
 
@@ -111,6 +135,9 @@ esp_err_t app_driver_set_state(bool on)
             g_is_blinking = false;
         }
         led_strip_clear(g_led_strip);
+        if (SYSTEM_LED_GPIO != GPIO_NUM_NC) {
+            gpio_set_level(SYSTEM_LED_GPIO, 0);
+        }
     }
     return ESP_OK;
 }

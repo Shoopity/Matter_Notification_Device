@@ -47,20 +47,18 @@ To compile these projects, you need to install the **ESP-IDF** toolchain and the
 
 ---
 
-## Building and Flashing (PlatformIO & ESP-IDF CLI)
+## Building and Flashing (ESP-IDF)
 
-You can compile and upload this project either using the **PlatformIO Extension** in VS Code or the standard **ESP-IDF CLI**.
+You can compile and upload this project either using the **ESP-IDF VSCode Extension** or the standard **ESP-IDF CLI**.
 
-### Option A: Using the PlatformIO Extension (Recommended for VS Code users)
-1. Open the project root folder `Matter_Notification_Device` in VS Code.
-2. The PlatformIO extension will auto-detect the two sub-projects (`button_device` and `led_device`) via their respective `platformio.ini` configuration files.
-3. In the PlatformIO sidebar or status bar:
-   * Select the environment for the project you want to build (e.g., `env:esp32-c6-devkitm-1` under `button_device` or `led_device`).
-   * Click the **Build** (checkmark) button to compile the firmware.
-   * Connect your ESP32-C6 board via USB and click the **Upload** (arrow) button to flash the board.
-   * Click the **Serial Monitor** (plug) button to view logs.
-
-*Note: Since PlatformIO compiles using the ESP-IDF framework, ensure you have set up your environment variables for `esp-matter` in the shell or terminal if compile errors arise. PlatformIO will automatically fetch standard components, but custom SDK paths must be accessible.*
+### Option A: Using the ESP-IDF VSCode Extension
+1. Install the [ESP-IDF VSCode Extension](https://marketplace.visualstudio.com/items?itemName=espressif.esp-idf-extension) in VS Code.
+2. Open the project root folder `Matter_Notification_Device` in VS Code.
+3. Set the active folder/project to either `button_device` or `led_device`.
+4. Configure the ESP-IDF extension settings, target chipset (`esp32c6`), and SDK path/configuration if prompted.
+5. Click the **Build** icon (cylinder) on the VS Code status bar to compile.
+6. Connect your ESP32-C6 board via USB, choose the correct serial port, and click the **Flash** icon (lightning bolt) to upload the firmware.
+7. Click the **Monitor** icon (computer screen) to open the serial monitor and view logs.
 
 ### Option B: Using the ESP-IDF Command Line Interface (CLI)
 Follow these steps for **each** project (`button_device` and `led_device`):
