@@ -1,0 +1,16 @@
+# ESP-IDF / esp-matter build artifacts
+build/
+sdkconfig
+sdkconfig.old
+sdkconfig.defaults.old
+
+# Python/Environment temporary files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# OS-specific clutter
+.DS_Store
+Thumbs.db
