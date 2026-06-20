@@ -1,0 +1,57 @@
+# 1. Fire up a completely clean Ubuntu instance; from a Windows Command Prompt:
+wsl --install -d Ubuntu-22.04
+# provide new credentials
+exit
+# Install usbipd on Windows
+usbipd list
+# Note the attached ESP32 device
+usbipd bind --busid <BUSID>
+usbipd attach --wsl Ubuntu-22.04 --busid <BUSID>
+
+wsl
+cd ~
+sudo apt-get update
+sudo apt-get upgrade -y
+
+# Install pre-reqs for Matter
+sudo apt-get install -y git gcc g++ pkg-config cmake curl libssl-dev libdbus-1-dev \
+     libglib2.0-dev libavahi-client-dev ninja-build python3.11 python3.11-venv python3.11-dev \
+     python3-pip unzip libgirepository1.0-dev libcairo2-dev libreadline-dev \
+     libevent-dev default-jre
+
+# Cut over to Python 3.11
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 2
+sudo update-alternatives --set python3 /usr/bin/python3.11
+	
+# ESP-IDF setup
+git clone --branch v5.5.4 --recursive https://github.com/espressif/esp-idf.git
+cd ~/esp-idf
+./install.sh
+cd ~
+
+# Matter Setup
+git clone --branch release/v1.5 --depth 1 https://github.com/espressif/esp-matter.git
+cd esp-matter
+git submodule update --init --depth 1
+
+# Download ConnectedHomeIP platform dependencies
+cd connectedhomeip/connectedhomeip
+./scripts/checkout_submodules.py --platform esp32 linux --shallow
+cd ~
+
+# Export IDF and install Matter
+. ~/esp-idf/export.sh
+cd ~/esp-matter
+./install.sh
+. ./export.sh
+
+# Get this repo
+mkdir ~/code
+cd ~/code
+git clone --recursive https://github.com/Shoopity/Matter_Notification_Device.git
+cd ~
+
+# Clean up project cache artifacts
+cd ~/code/Matter_Notification_Device/button_device
+rm -rf build sdkconfig sdkconfig.old managed_components dependencies.lock .shadow-plugin-configured
