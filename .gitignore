@@ -3,6 +3,12 @@ build/
 sdkconfig
 sdkconfig.old
 sdkconfig.defaults.old
+dependencies.lock
+
+# Crucial Espressif Package Managers (The 1K+ file culprits)
+managed_components/
+.component_manager/
+.shadow-plugin-configured
 
 # Python/Environment temporary files
 __pycache__/
@@ -10,6 +16,7 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+.espressif/
 
 # OS-specific clutter
 .DS_Store
