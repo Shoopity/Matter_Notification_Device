@@ -53,6 +53,8 @@ cd ~
 
 # Install Matter
 cd ~/esp-matter
+# Depending on your environement, you might run out of memory and you'll need to run
+# the following command multiple times until it actually completes
 ./install.sh
 . ./export.sh
 
