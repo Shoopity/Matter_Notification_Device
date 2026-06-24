@@ -1,44 +1,40 @@
-cmake_minimum_required(VERSION 3.16)
+# The following lines of boilerplate have to be in your project's
+# CMakeLists in this exact order for cmake to work correctly
+cmake_minimum_required(VERSION 3.5)
 
-# 1. Define the Matter repo core paths & verify environment
 if(NOT DEFINED ENV{ESP_MATTER_PATH})
-    message(FATAL_ERROR "Please set the ESP_MATTER_PATH environment variable by running '. export.sh' inside your esp-matter directory.")
-endif()
+    message(FATAL_ERROR "Please set ESP_MATTER_PATH to the path of esp-matter repo")
+endif(NOT DEFINED ENV{ESP_MATTER_PATH})
+
+set(PROJECT_VER "1.0")
+set(PROJECT_VER_NUMBER 1)
 
 set(ESP_MATTER_PATH $ENV{ESP_MATTER_PATH})
 set(MATTER_SDK_PATH ${ESP_MATTER_PATH}/connectedhomeip/connectedhomeip)
 
-# 2. Dynamically map target-specific Matter hardware definitions
-if(NOT DEFINED ENV{ESP_MATTER_DEVICE_PATH})
-    if("${IDF_TARGET}" STREQUAL "esp32c6")
-        set(ENV{ESP_MATTER_DEVICE_PATH} ${ESP_MATTER_PATH}/device_hal/device/esp32c6_devkit_c)
-    elseif("${IDF_TARGET}" STREQUAL "esp32c3")
-        set(ENV{ESP_MATTER_DEVICE_PATH} ${ESP_MATTER_PATH}/device_hal/device/esp32c3_devkit_m)
-    elseif("${IDF_TARGET}" STREQUAL "esp32" OR "${IDF_TARGET}" STREQUAL "")
-        set(ENV{ESP_MATTER_DEVICE_PATH} ${ESP_MATTER_PATH}/device_hal/device/esp32_devkit_c)
-    else()
-        message(FATAL_ERROR "The target chip '${IDF_TARGET}' does not have a mapped Matter hardware profile in this CMakeLists file.")
-    endif()
-endif()
-
-# 3. Include base ESP-IDF project build support
+# This should be done before using the IDF_TARGET variable.
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-
-# 4. Include essential Espressif Matter build helper utilities
 include(${ESP_MATTER_PATH}/examples/common/cmake_common/components_include.cmake)
-include($ENV{ESP_MATTER_DEVICE_PATH}/esp_matter_device.cmake)
 
-# 5. Register the comprehensive Matter component directories 
 set(EXTRA_COMPONENT_DIRS
     "${ESP_MATTER_PATH}/examples/common"
     "${MATTER_SDK_PATH}/config/esp32/components"
     "${ESP_MATTER_PATH}/components"
-    "${ESP_MATTER_PATH}/device_hal/device"
-    ${extra_components_dirs_append}
-)
+    ${extra_components_dirs_append})
 
-# 6. Enforce the compilation flags required by the Matter SDK
+project(generic_switch)
+if(CONFIG_IDF_TARGET_ESP32C2)
+    include(relinker)
+endif()
+
 idf_build_set_property(CXX_COMPILE_OPTIONS "-std=gnu++17;-Os;-DCHIP_HAVE_CONFIG_H;-Wno-overloaded-virtual" APPEND)
 
-# 7. Define the project name
-project(button_device)
+if (CONFIG_ENABLE_ESP_INSIGHTS_TRACE)
+    target_add_binary_data(generic_switch.elf "insights_auth_key.txt" TEXT)
+endif()
+
+idf_build_set_property(CXX_COMPILE_OPTIONS "-std=gnu++17;-Os;-DCHIP_HAVE_CONFIG_H" APPEND)
+idf_build_set_property(C_COMPILE_OPTIONS "-Os" APPEND)
+# For RISCV chips, project_include.cmake sets -Wno-format, but does not clear various
+# flags that depend on -Wformat
+idf_build_set_property(COMPILE_OPTIONS "-Wno-format-nonliteral;-Wno-format-security" APPEND)
