@@ -32,9 +32,16 @@ sudo apt-get install -y git gcc g++ pkg-config cmake curl libssl-dev libdbus-1-d
      python3-pip unzip libgirepository1.0-dev libcairo2-dev libreadline-dev \
      libevent-dev default-jre
 
+# Make a temp to make python 3.11 the default
 mkdir -p ~/.local/bin
 ln -sf /usr/bin/python3.11 ~/.local/bin/python3
 export PATH=~/.local/bin:$PATH
+
+# Allow the user to write to the USB
+sudo usermod -a -G dialout $USER
+sudo usermod -a -G plugdev $USER
+# restart WSL, or run:
+# su - $USR
 	
 # ESP-IDF setup; I've chosen the Matter/IDF paring of 1.5/5.4.1
 git clone --branch v5.4.1 --recursive https://github.com/espressif/esp-idf.git
@@ -55,9 +62,10 @@ cd ~
 
 # Install Matter
 cd ~/esp-matter
-# Depending on your environement, you might run out of memory and you'll need to run
-# the following command multiple times until it actually completes
 ./install.sh
+# Depending on your environement, you might run out of memory
+# If you do, run the following command plus the above install command again (you meed to do this more than twice)
+# rm -rf ~/esp-matter/connectedhomeip/connectedhomeip/.environment/
 . ./export.sh
 
 # Get this repo
@@ -81,15 +89,11 @@ echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"4MB\"" >> sdkconfig.defaults
 echo "alias load-matter='export PATH=~/.local/bin:\$PATH && . ~/esp-idf/export.sh && . ~/esp-matter/export.sh'" >> ~/.bashrc
 source ~/.bashrc
 
-# Allow the user to write to the USB
-sudo usermod -a -G dialout $USER
-sudo usermod -a -G plugdev $USER
-
 ## Next lines are commented out because they're here for reference, but shouldn't be run as part of the environment setup process
 # idf.py set-target esp32c6
 # idf.py build
-## Find the port for the attached ESP
+## Find the port for the attached ESP32
 # ls /dev/ttyACM* OR maybe ls /dev/ttyUSB*
 ## Possibly wipe the device if it was a previous Matter device
 # idf.py -p <PORT> erase-flash (e.g. idf.py -p /dev/ttyACM0 erase-flash)
-# idf.py -p <PORT> flash (e.g. idf.py -p /dev/ttyACM0 flash)
+# idf.py -p <PORT> flash (e.g. idf.py -p /dev/ttyACM0 flash monitor)
