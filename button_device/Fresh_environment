@@ -3,39 +3,41 @@ wsl --install -d Ubuntu-22.04
 # provide new credentials
 exit
 # Install usbipd on Windows
+# Check here: https://github.com/dorssel/usbipd-win/releases
 usbipd list
 # Note the attached ESP32 device
+# Possibly clear out previous bindings
+# usbipd unbind -a
 usbipd bind --busid <BUSID>
 usbipd attach --wsl Ubuntu-22.04 --busid <BUSID>
 
 wsl
 cd ~
+# Run these two lines without anything else, mainly to get the credentials for sudo cached
 sudo apt-get update
 sudo apt-get upgrade -y
+
+######## You can Copy/Past the rest from here down to the ./install.sh command for Matter,
+######## Unless you're 100% sure installing Matter can be completed with only one run,
+######## then you can go all the way to the bottom
 
 # Install pre-reqs for Matter
 # sudo apt-get install -y git gcc g++ pkg-config cmake curl libssl-dev libdbus-1-dev \
 #     libglib2.0-dev libavahi-client-dev ninja-build python3.11 python3.11-venv python3.11-dev \
 #     python3-pip unzip libgirepository1.0-dev libcairo2-dev libreadline-dev \
 #     libevent-dev default-jre
-
 sudo apt-get install -y git gcc g++ pkg-config cmake curl libssl-dev libdbus-1-dev \
      libglib2.0-dev libavahi-client-dev ninja-build python3-venv python3-dev \
      python3.11 python3.11-venv python3.11-dev \
      python3-pip unzip libgirepository1.0-dev libcairo2-dev libreadline-dev \
      libevent-dev default-jre
 
-# Cut over to Python 3.11 (not needed anymore?)
-# sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
-# sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 2
-# sudo update-alternatives --set python3 /usr/bin/python3.11
-# Session safe alternative?
 mkdir -p ~/.local/bin
 ln -sf /usr/bin/python3.11 ~/.local/bin/python3
 export PATH=~/.local/bin:$PATH
 	
-# ESP-IDF setup
-git clone --branch v5.5.4 --recursive https://github.com/espressif/esp-idf.git
+# ESP-IDF setup; I've chosen the Matter/IDF paring of 1.5/5.4.1
+git clone --branch v5.4.1 --recursive https://github.com/espressif/esp-idf.git
 cd ~/esp-idf
 ./install.sh
 . ./export.sh
@@ -75,4 +77,19 @@ fi
 echo "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y" >> sdkconfig.defaults
 echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"4MB\"" >> sdkconfig.defaults
 
-idf.py set-target esp32c6
+# Create an alias to run every time you open a command prompt; just type "load-matter" the next time you open a terminal
+echo "alias load-matter='export PATH=~/.local/bin:\$PATH && . ~/esp-idf/export.sh && . ~/esp-matter/export.sh'" >> ~/.bashrc
+source ~/.bashrc
+
+# Allow the user to write to the USB
+sudo usermod -a -G dialout $USER
+sudo usermod -a -G plugdev $USER
+
+## Next lines are commented out because they're here for reference, but shouldn't be run as part of the environment setup process
+# idf.py set-target esp32c6
+# idf.py build
+## Find the port for the attached ESP
+# ls /dev/ttyACM* OR maybe ls /dev/ttyUSB*
+## Possibly wipe the device if it was a previous Matter device
+# idf.py -p <PORT> erase-flash (e.g. idf.py -p /dev/ttyACM0 erase-flash)
+# idf.py -p <PORT> flash (e.g. idf.py -p /dev/ttyACM0 flash)
