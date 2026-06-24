@@ -1,143 +1,186 @@
+/*
+   This example code is in the Public Domain (or CC0 licensed, at your option.)
+
+   Unless required by applicable law or agreed to in writing, this
+   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+   CONDITIONS OF ANY KIND, either express or implied.
+*/
+
 #include <esp_log.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <led_strip.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <esp_matter.h>
-#include <driver/gpio.h>
+#include <app_priv.h>
+#include <common_macros.h>
 
-#define LED_STRIP_GPIO GPIO_NUM_8
-#define LED_STRIP_NUM_LEDS 8 // Adjustable for your strip length
+#include <device.h>
+#include <led_driver.h>
+#include <button_gpio.h>
 
-// On-board LED GPIO definition (change to match your board, e.g. GPIO_NUM_15 for FireBeetle C6, or set to GPIO_NUM_NC if none)
-#define SYSTEM_LED_GPIO GPIO_NUM_15 
+using namespace chip::app::Clusters;
+using namespace esp_matter;
 
 static const char *TAG = "app_driver";
-static led_strip_handle_t g_led_strip = NULL;
-static uint16_t g_light_endpoint_id = 0;
-static TaskHandle_t g_blink_task_handle = NULL;
-static bool g_is_blinking = false;
+extern uint16_t light_endpoint_id;
 
-// Task to perform the blinking effect
-static void led_blink_task(void *pvParameters)
+// Global variables to store current XY color coordinates
+static uint16_t current_x = 0;
+static uint16_t current_y = 0;
+
+/* Do any conversions/remapping for the actual value here */
+static esp_err_t app_driver_light_set_power(led_driver_handle_t handle, esp_matter_attr_val_t *val)
 {
-    g_is_blinking = true;
-    ESP_LOGI(TAG, "Starting notification blink task...");
-
-    // Blink 10 times (250ms ON, 250ms OFF = 5 seconds total)
-    for (int i = 0; i < 10; i++) {
-        // Turn LEDs ON (Bright Cyan/Blue)
-        for (int j = 0; j < LED_STRIP_NUM_LEDS; j++) {
-            led_strip_set_pixel(g_led_strip, j, 0, 180, 255);
-        }
-        led_strip_refresh(g_led_strip);
-
-        // Turn on-board GPIO LED ON
-        if (SYSTEM_LED_GPIO != GPIO_NUM_NC) {
-            gpio_set_level(SYSTEM_LED_GPIO, 1);
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(250));
-
-        // Turn LEDs OFF
-        led_strip_clear(g_led_strip);
-
-        // Turn on-board GPIO LED OFF
-        if (SYSTEM_LED_GPIO != GPIO_NUM_NC) {
-            gpio_set_level(SYSTEM_LED_GPIO, 0);
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(250));
-    }
-
-    ESP_LOGI(TAG, "Blink task complete. Resetting Matter state to OFF...");
-
-    // Reset Matter state to OFF (false) to reflect that the notification event is over
-    esp_matter::lock::chip_stack_lock(portMAX_DELAY);
-    uint32_t cluster_id = chip::app::Clusters::OnOff::Id;
-    uint32_t attribute_id = chip::app::Clusters::OnOff::Attributes::OnOff::Id;
-    esp_matter::attribute_t *attribute = esp_matter::attribute::get(g_light_endpoint_id, cluster_id, attribute_id);
-    
-    if (attribute != NULL) {
-        esp_matter_attr_val_t val = esp_matter_invalid(NULL);
-        esp_matter::attribute::get_val(attribute, &val);
-        val.val.b = false; // Set OnOff state to false
-        esp_matter::attribute::update(g_light_endpoint_id, cluster_id, attribute_id, &val);
-    }
-    esp_matter::lock::chip_stack_unlock();
-
-    g_is_blinking = false;
-    g_blink_task_handle = NULL;
-    vTaskDelete(NULL);
+    return led_driver_set_power(handle, val->val.b);
 }
 
-esp_err_t app_driver_init(uint16_t light_endpoint_id)
+static esp_err_t app_driver_light_set_brightness(led_driver_handle_t handle, esp_matter_attr_val_t *val)
 {
-    g_light_endpoint_id = light_endpoint_id;
-
-    // LED Strip general configuration
-    led_strip_config_t strip_config = {
-        .strip_gpio_num = LED_STRIP_GPIO,
-        .max_leds = LED_STRIP_NUM_LEDS,
-        .led_pixel_format = LED_PIXEL_FORMAT_GRB,
-        .led_model = LED_MODEL_WS2812,
-        .flags = {
-            .invert_out = false,
-        }
-    };
-
-    // RMT backend configuration
-    led_strip_rmt_config_t rmt_config = {
-        .clk_src = RMT_CLK_SRC_DEFAULT,
-        .resolution_hz = 10 * 1000 * 1000, // 10 MHz
-        .mem_block_symbols = 64,
-        .flags = {
-            .with_dma = false,
-        }
-    };
-
-    // Initialize the RMT driver for WS2812
-    esp_err_t err = led_strip_new_rmt_device(&strip_config, &rmt_config, &g_led_strip);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize LED strip, err: %d", err);
-        return err;
-    }
-    // Clear strip
-    led_strip_clear(g_led_strip);
-    ESP_LOGI(TAG, "WS2812 LED strip driver initialized on GPIO %d.", LED_STRIP_GPIO);
-
-    // Initialize standard GPIO LED if configured
-    if (SYSTEM_LED_GPIO != GPIO_NUM_NC) {
-        gpio_reset_pin(SYSTEM_LED_GPIO);
-        gpio_set_direction(SYSTEM_LED_GPIO, GPIO_MODE_OUTPUT);
-        gpio_set_level(SYSTEM_LED_GPIO, 0);
-        ESP_LOGI(TAG, "On-board GPIO LED initialized on GPIO %d.", SYSTEM_LED_GPIO);
-    }
-
-    return ESP_OK;
+    int value = REMAP_TO_RANGE(val->val.u8, MATTER_BRIGHTNESS, STANDARD_BRIGHTNESS);
+    return led_driver_set_brightness(handle, value);
 }
 
-esp_err_t app_driver_set_state(bool on)
+static esp_err_t app_driver_light_set_hue(led_driver_handle_t handle, esp_matter_attr_val_t *val)
 {
-    if (on) {
-        // If commanded ON and we aren't blinking, start the blink task
-        if (!g_is_blinking) {
-            BaseType_t ret = xTaskCreate(led_blink_task, "led_blink_task", 4096, NULL, 5, &g_blink_task_handle);
-            if (ret != pdPASS) {
-                ESP_LOGE(TAG, "Failed to start blink task");
-                return ESP_FAIL;
+    int value = REMAP_TO_RANGE(val->val.u8, MATTER_HUE, STANDARD_HUE);
+    return led_driver_set_hue(handle, value);
+}
+
+static esp_err_t app_driver_light_set_saturation(led_driver_handle_t handle, esp_matter_attr_val_t *val)
+{
+    int value = REMAP_TO_RANGE(val->val.u8, MATTER_SATURATION, STANDARD_SATURATION);
+    return led_driver_set_saturation(handle, value);
+}
+
+static esp_err_t app_driver_light_set_temperature(led_driver_handle_t handle, esp_matter_attr_val_t *val)
+{
+    uint32_t value = REMAP_TO_RANGE_INVERSE(val->val.u16, STANDARD_TEMPERATURE_FACTOR);
+    return led_driver_set_temperature(handle, value);
+}
+
+static esp_err_t app_driver_light_set_xy(led_driver_handle_t handle, uint16_t x, uint16_t y)
+{
+    return led_driver_set_xy(handle, x, y);
+}
+
+static void app_driver_button_toggle_cb(void *arg, void *data)
+{
+    ESP_LOGI(TAG, "Toggle button pressed");
+    uint16_t endpoint_id = light_endpoint_id;
+    uint32_t cluster_id = OnOff::Id;
+    uint32_t attribute_id = OnOff::Attributes::OnOff::Id;
+
+    attribute_t *attribute = attribute::get(endpoint_id, cluster_id, attribute_id);
+
+    esp_matter_attr_val_t val = esp_matter_invalid(NULL);
+    attribute::get_val(attribute, &val);
+    val.val.b = !val.val.b;
+    attribute::update(endpoint_id, cluster_id, attribute_id, &val);
+}
+
+esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_t endpoint_id, uint32_t cluster_id,
+                                      uint32_t attribute_id, esp_matter_attr_val_t *val)
+{
+    esp_err_t err = ESP_OK;
+    if (endpoint_id == light_endpoint_id) {
+        led_driver_handle_t handle = (led_driver_handle_t)driver_handle;
+        if (cluster_id == OnOff::Id) {
+            if (attribute_id == OnOff::Attributes::OnOff::Id) {
+                err = app_driver_light_set_power(handle, val);
+            }
+        } else if (cluster_id == LevelControl::Id) {
+            if (attribute_id == LevelControl::Attributes::CurrentLevel::Id) {
+                err = app_driver_light_set_brightness(handle, val);
+            }
+        } else if (cluster_id == ColorControl::Id) {
+            if (attribute_id == ColorControl::Attributes::CurrentHue::Id) {
+                err = app_driver_light_set_hue(handle, val);
+            } else if (attribute_id == ColorControl::Attributes::CurrentSaturation::Id) {
+                err = app_driver_light_set_saturation(handle, val);
+            } else if (attribute_id == ColorControl::Attributes::ColorTemperatureMireds::Id) {
+                err = app_driver_light_set_temperature(handle, val);
+            } else if (attribute_id == ColorControl::Attributes::CurrentX::Id) {
+                current_x = val->val.u16;
+                err = app_driver_light_set_xy(handle, current_x, current_y);
+            } else if (attribute_id == ColorControl::Attributes::CurrentY::Id) {
+                current_y = val->val.u16;
+                err = app_driver_light_set_xy(handle, current_x, current_y);
             }
         }
-    } else {
-        // If commanded OFF and we are blinking, stop the blink task and clear LEDs
-        if (g_is_blinking && g_blink_task_handle != NULL) {
-            vTaskDelete(g_blink_task_handle);
-            g_blink_task_handle = NULL;
-            g_is_blinking = false;
-        }
-        led_strip_clear(g_led_strip);
-        if (SYSTEM_LED_GPIO != GPIO_NUM_NC) {
-            gpio_set_level(SYSTEM_LED_GPIO, 0);
-        }
     }
-    return ESP_OK;
+    return err;
+}
+
+esp_err_t app_driver_light_set_defaults(uint16_t endpoint_id)
+{
+    esp_err_t err = ESP_OK;
+    void *priv_data = endpoint::get_priv_data(endpoint_id);
+    led_driver_handle_t handle = (led_driver_handle_t)priv_data;
+    esp_matter_attr_val_t val = esp_matter_invalid(NULL);
+
+    /* Setting brightness */
+    attribute_t *attribute = attribute::get(endpoint_id, LevelControl::Id, LevelControl::Attributes::CurrentLevel::Id);
+    attribute::get_val(attribute, &val);
+    err |= app_driver_light_set_brightness(handle, &val);
+
+    /* Setting color */
+    attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::ColorMode::Id);
+    attribute::get_val(attribute, &val);
+    if (val.val.u8 == (uint8_t)ColorControl::ColorMode::kCurrentHueAndCurrentSaturation) {
+        /* Setting hue */
+        attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::CurrentHue::Id);
+        attribute::get_val(attribute, &val);
+        err |= app_driver_light_set_hue(handle, &val);
+        /* Setting saturation */
+        attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::CurrentSaturation::Id);
+        attribute::get_val(attribute, &val);
+        err |= app_driver_light_set_saturation(handle, &val);
+    } else if (val.val.u8 == (uint8_t)ColorControl::ColorMode::kColorTemperature) {
+        /* Setting temperature */
+        attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::ColorTemperatureMireds::Id);
+        attribute::get_val(attribute, &val);
+        err |= app_driver_light_set_temperature(handle, &val);
+    } else if (val.val.u8 == (uint8_t)ColorControl::ColorMode::kCurrentXAndCurrentY) {
+        /* Setting XY coordinates */
+        attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::CurrentX::Id);
+        attribute::get_val(attribute, &val);
+        current_x = val.val.u16;
+        attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::CurrentY::Id);
+        attribute::get_val(attribute, &val);
+        current_y = val.val.u16;
+        err |= app_driver_light_set_xy(handle, current_x, current_y);
+    } else {
+        ESP_LOGE(TAG, "Color mode not supported");
+    }
+
+    /* Setting power */
+    attribute = attribute::get(endpoint_id, OnOff::Id, OnOff::Attributes::OnOff::Id);
+    attribute::get_val(attribute, &val);
+    err |= app_driver_light_set_power(handle, &val);
+
+    return err;
+}
+
+app_driver_handle_t app_driver_light_init()
+{
+    /* Initialize led */
+    led_driver_config_t config = led_driver_get_config();
+    led_driver_handle_t handle = led_driver_init(&config);
+    return (app_driver_handle_t)handle;
+}
+
+app_driver_handle_t app_driver_button_init()
+{
+    /* Initialize button */
+    button_handle_t handle = NULL;
+    const button_config_t btn_cfg = {0};
+    const button_gpio_config_t btn_gpio_cfg = button_driver_get_config();
+
+    if (iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg, &handle) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create button device");
+        return NULL;
+    }
+
+    iot_button_register_cb(handle, BUTTON_PRESS_DOWN, NULL, app_driver_button_toggle_cb, NULL);
+    return (app_driver_handle_t)handle;
 }
