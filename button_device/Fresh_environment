@@ -41,7 +41,7 @@ export PATH=~/.local/bin:$PATH
 sudo usermod -a -G dialout $USER
 sudo usermod -a -G plugdev $USER
 # restart WSL, or run:
-# su - $USR
+# su - $USER
 	
 # ESP-IDF setup; I've chosen the Matter/IDF paring of 1.5/5.4.1
 git clone --branch v5.4.1 --recursive https://github.com/espressif/esp-idf.git
