@@ -21,3 +21,6 @@ __pycache__/
 # OS-specific clutter
 .DS_Store
 Thumbs.db
+
+# weird zone identifier files
+*.Zone*
