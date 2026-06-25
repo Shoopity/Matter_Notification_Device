@@ -1,0 +1,36 @@
+# Download the mft-tool, since it's no longer included in the repository
+python3 -m pip install esp-matter-mfg-tool
+
+## Create a new directory to store the output, e.g.:
+mkdir ~/qr_out
+## CD to that directory, e.g.:
+cd ~/qr_out
+
+# Command to generate the out files:
+# esp-matter-mfg-tool -v 0xFFF1 -p 0x8000 --vendor-name "TestVendor" --product-name "TestProduct" --discriminator <unique_4_digit_#> -passcode <unique_8_digit_#>
+# -v and -p should stay as seen above if you're just making at-home, DIY projects,
+# otherwise you might run into issues depending what ecosystem you're using (Home Assistant, Apple, Google, etc.)
+# At the very least, keep 0xFFF1, but you can change the -p if you want to organize things
+# vendor-name and product-name can be whatever
+# --discriminator should be unique, but doesn't have to be.  It is used during pairing only, in case you power on multiple devices, it helps the system know which of the devices you're referring to
+# -passcode should be unique, but doesn't have to be.  It is ued to help prevent someone from hijacking the device.
+# E.G:
+esp-matter-mfg-tool -v 0xFFF1 -p 0x8000 --vendor-name "PPP" --product-name "PPP-Button" --discriminator 3840 --passcode 48331897
+
+# You will now have a new out folder, which consists of a folder name whatever you used for the -v and -p
+# You're mainly interested in the folder with the UUID, e.g.:
+cd ~/qr_out/out/fff1_8000/e2b52238-784f-4584-be9d-43d9b6a91c3b
+
+# This folder contains both an image of the qr code need for commissioning, and the bin that will get flashed to the device
+# If you want, you can go to https://project-chip.github.io/connectedhomeip/qrcode.html to paste in the MT: code that you can view in the CSV.
+# It will generate a different QR than this one, but that's just because they used different error correction levels
+
+# Get the fctry offset from your project's partitions.csv, e.g.
+nano ~/code/Matter_Notification_Device/led_device/partitions.csv
+# Look for the row staring with "fctry", and the fourth column consisting of a memory address, e.g. 0x3E0000
+
+# Run the following command to write this info to the correct partition
+# esptool.py -p <port> -b <baud_rate> write_flash <partition_offset> path/to/bin_file.bin
+# * are accepted wildcards
+# E.G., if you're still in the directory containing the .bin:
+esptool.py -p /dev/ttyACM0 -b 460800 write_flash 0x3e0000 ./*.bin
