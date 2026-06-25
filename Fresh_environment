@@ -79,11 +79,12 @@ cd ~/code/Matter_Notification_Device/button_device
 rm -rf build sdkconfig sdkconfig.old managed_components dependencies.lock .shadow-plugin-configured
 
 # Config flasher for a 4 MB partition
-if [ -f "sdkconfig.defaults" ]; then
-    sed -i '/CONFIG_ESPTOOLPY_FLASHSIZE/d' sdkconfig.defaults
-fi
-echo "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y" >> sdkconfig.defaults
-echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"4MB\"" >> sdkconfig.defaults
+# Commented out because I just added this to the sdkconfig.defaults in this repositor, but leaving in the likely event I have no idea what I'm doing
+# if [ -f "sdkconfig.defaults" ]; then
+#     sed -i '/CONFIG_ESPTOOLPY_FLASHSIZE/d' sdkconfig.defaults
+# fi
+# echo "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y" >> sdkconfig.defaults
+# echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"4MB\"" >> sdkconfig.defaults
 
 # Create an alias to run every time you open a command prompt; just type "load-matter" the next time you open a terminal
 echo "alias load-matter='export PATH=~/.local/bin:\$PATH && . ~/esp-idf/export.sh && . ~/esp-matter/export.sh'" >> ~/.bashrc
