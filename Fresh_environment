@@ -98,3 +98,4 @@ source ~/.bashrc
 ## Possibly wipe the device if it was a previous Matter device
 # idf.py -p <PORT> erase-flash (e.g. idf.py -p /dev/ttyACM0 erase-flash)
 # idf.py -p <PORT> flash (e.g. idf.py -p /dev/ttyACM0 flash monitor)
+# If you want to make your qr code/credentials, and including that into the burn, see the QR_code_gen file
