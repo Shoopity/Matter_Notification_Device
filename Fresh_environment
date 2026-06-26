@@ -43,6 +43,9 @@ sudo usermod -a -G plugdev $USER
 # restart WSL, or run:
 # su - $USER
 	
+# Create a folder to hold ESP stuff
+mkdir ~/esp
+cd ~/esp
 # ESP-IDF setup; I've chosen the Matter/IDF paring of 1.5/5.4.1
 git clone --branch v5.4.1 --recursive https://github.com/espressif/esp-idf.git
 cd ~/esp-idf
