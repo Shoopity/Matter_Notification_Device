@@ -106,5 +106,5 @@ source ~/.bashrc
 ## idf.py -p <PORT> flash, e.g.:
 # idf.py -p /dev/ttyACM0 flash monitor
 ## completely wipe everything, flash the new stuff, and serial monitor it
-# idf.py erase-otadata erase-flash flash monitor
+# idf.py erase-flash flash monitor
 # If you want to make your qr code/credentials, and including that into the burn, see the QR_code_gen file
