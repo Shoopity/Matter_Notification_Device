@@ -48,7 +48,7 @@ mkdir ~/esp
 cd ~/esp
 # ESP-IDF setup; I've chosen the Matter/IDF paring of 1.5/5.4.1
 git clone --branch v5.4.1 --recursive https://github.com/espressif/esp-idf.git
-cd ~/esp-idf
+cd ~/esp/esp-idf
 ./install.sh
 . ./export.sh
 cd ~/esp
@@ -64,7 +64,7 @@ cd connectedhomeip/connectedhomeip
 cd ~
 
 # Install Matter
-cd ~/esp-matter
+cd ~/esp/esp-matter
 ./install.sh
 # Depending on your environement, you might run out of memory
 # If you do, run the following command plus the above install command again (you meed to do this more than twice)
@@ -82,7 +82,7 @@ cd ~/code/Matter_Notification_Device/button_device
 rm -rf build sdkconfig sdkconfig.old managed_components dependencies.lock .shadow-plugin-configured
 
 # Config flasher for a 4 MB partition
-# Commented out because I just added this to the sdkconfig.defaults in this repositor, but leaving in the likely event I have no idea what I'm doing
+# Commented out because I just added this to the sdkconfig.defaults in this repository, but leaving in the likely event I have no idea what I'm doing
 # if [ -f "sdkconfig.defaults" ]; then
 #     sed -i '/CONFIG_ESPTOOLPY_FLASHSIZE/d' sdkconfig.defaults
 # fi
@@ -90,8 +90,10 @@ rm -rf build sdkconfig sdkconfig.old managed_components dependencies.lock .shado
 # echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"4MB\"" >> sdkconfig.defaults
 
 # Create an alias to run every time you open a command prompt; just type "load-matter" the next time you open a terminal
-echo "alias load-matter='export PATH=~/.local/bin:\$PATH && . ~/esp-idf/export.sh && . ~/esp-matter/export.sh'" >> ~/.bashrc
+echo "alias load-matter='export PATH=~/.local/bin:\$PATH && . ~/esp/esp-idf/export.sh && . ~/esp/esp-matter/export.sh'" >> ~/.bashrc
 source ~/.bashrc
+
+# Because you gave access to the USB above, you'll need to log out/in; now's a good time to do that
 
 ## Next lines are commented out because they're here for reference, but shouldn't be run as part of the environment setup process
 # idf.py set-target esp32c6
