@@ -51,7 +51,7 @@ git clone --branch v5.4.1 --recursive https://github.com/espressif/esp-idf.git
 cd ~/esp-idf
 ./install.sh
 . ./export.sh
-cd ~
+cd ~/esp
 
 # Matter Setup
 git clone --branch release/v1.5 --depth 1 https://github.com/espressif/esp-matter.git
