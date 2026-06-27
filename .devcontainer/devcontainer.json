@@ -3,13 +3,6 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "espressif.esp-idf-extension"
-      ]
-    }
-  },
   "remoteUser": "vscode",
   "postCreateCommand": "bash .devcontainer/setup.sh"
 }
