@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-22.04
 
-ARG USERNAME=e
+ARG USERNAME=vscode
 
 # Install core system prerequisites quickly
 ENV DEBIAN_FRONTEND=noninteractive
