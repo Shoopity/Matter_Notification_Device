@@ -10,9 +10,6 @@
       ]
     }
   },
-  "features": {
-    // Keeps common terminal utilities ready
-    "ghcr.io/devcontainers/features/common-utils:1": {}
-  },
-  "remoteUser": "vscode"
+  "remoteUser": "vscode",
+  "postCreateCommand": "bash .devcontainer/setup.sh"
 }
