@@ -18,6 +18,14 @@
 #include <led_driver.h>
 #include <button_gpio.h>
 
+// Adding these to blink the on-board LED
+#include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+// Seeed ESP32-C6 onboard LED pin?
+#define ONBOARD_LED_GPIO GPIO_NUM_15
+
 using namespace chip::app::Clusters;
 using namespace esp_matter;
 
@@ -78,6 +86,24 @@ static void app_driver_button_toggle_cb(void *arg, void *data)
     attribute::update(endpoint_id, cluster_id, attribute_id, &val);
 }
 
+// Blink the on-board LED 4 times/sec, for 5 seconds
+void led_blink_task(void *pvParameter) {
+    // 1. Setup the pin as an output
+    gpio_reset_pin(ONBOARD_LED_GPIO);
+    gpio_set_direction(ONBOARD_LED_GPIO, GPIO_MODE_OUTPUT);
+    // 2. Loop 20 times (250ms per loop * 20 = 5 seconds)
+    for (int i = 0; i < 20; i++) {
+        gpio_set_level(ONBOARD_LED_GPIO, 1); // LED ON
+        vTaskDelay(pdMS_TO_TICKS(125));      // Wait 125ms
+        gpio_set_level(ONBOARD_LED_GPIO, 0); // LED OFF
+        vTaskDelay(pdMS_TO_TICKS(125));      // Wait 125ms
+    }
+    // 3. Leave the LED on after the 5 seconds, since the command was "Turn On"
+    // gpio_set_level(ONBOARD_LED_GPIO, 1);
+    // 4. Tasks must delete themselves when finished in FreeRTOS!
+    vTaskDelete(NULL); 
+}
+
 esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_t endpoint_id, uint32_t cluster_id,
                                       uint32_t attribute_id, esp_matter_attr_val_t *val)
 {
@@ -86,25 +112,18 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
         led_driver_handle_t handle = (led_driver_handle_t)driver_handle;
         if (cluster_id == OnOff::Id) {
             if (attribute_id == OnOff::Attributes::OnOff::Id) {
-                err = app_driver_light_set_power(handle, val);
-            }
-        } else if (cluster_id == LevelControl::Id) {
-            if (attribute_id == LevelControl::Attributes::CurrentLevel::Id) {
-                err = app_driver_light_set_brightness(handle, val);
-            }
-        } else if (cluster_id == ColorControl::Id) {
-            if (attribute_id == ColorControl::Attributes::CurrentHue::Id) {
-                err = app_driver_light_set_hue(handle, val);
-            } else if (attribute_id == ColorControl::Attributes::CurrentSaturation::Id) {
-                err = app_driver_light_set_saturation(handle, val);
-            } else if (attribute_id == ColorControl::Attributes::ColorTemperatureMireds::Id) {
-                err = app_driver_light_set_temperature(handle, val);
-            } else if (attribute_id == ColorControl::Attributes::CurrentX::Id) {
-                current_x = val->val.u16;
-                err = app_driver_light_set_xy(handle, current_x, current_y);
-            } else if (attribute_id == ColorControl::Attributes::CurrentY::Id) {
-                current_y = val->val.u16;
-                err = app_driver_light_set_xy(handle, current_x, current_y);
+                
+                bool is_on = val->val.b; // Get the boolean (true = on, false = off)
+                
+                if (is_on) {
+                    // Launch our blinking thread in the background
+                    xTaskCreate(led_blink_task, "led_blink_task", 2048, NULL, 5, NULL);
+                } else {
+                    // Immediately turn the LED off
+                    gpio_reset_pin(ONBOARD_LED_GPIO);
+                    gpio_set_direction(ONBOARD_LED_GPIO, GPIO_MODE_OUTPUT);
+                    gpio_set_level(ONBOARD_LED_GPIO, 0);
+                }
             }
         }
     }
