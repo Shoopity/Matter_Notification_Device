@@ -1,8 +1,8 @@
 # ESP32-C6 Matter over Thread Notification Device
 
 This project contains the firmware for two custom smart home devices using ESP32-C6 microcontrollers:
-1. **Button Device (`button_device`)**: A battery-powered (Sleepy End Device) Matter Switch. When pressed, it sends a command directly to the LED controller over Thread.
-2. **LED Device (`led_device`)**: A mains-powered (120V to 5V) Thread Router controlling WS2812 LEDs. When triggered, it blinks the LEDs for 5 seconds as a notification, then resets.
+1. **Button Device (`button`)**: A battery-powered (Sleepy End Device) Matter Switch. When pressed, it sends a command directly to the LED controller over Thread.
+2. **LED Device (`light`)**: A mains-powered (120V to 5V) Thread Router controlling WS2812 LEDs. When triggered, it blinks the LEDs for 5 seconds as a notification, then resets.
 
 These devices communicate locally via Thread (e.g. bridged by an eero Pro 6e border router) and support Matter Multi-Admin, allowing them to be controlled by Google Home (voice control/automations) and bound directly to each other for local, zero-latency execution.
 
@@ -23,6 +23,15 @@ These devices communicate locally via Thread (e.g. bridged by an eero Pro 6e bor
 * **Power**: Mains-powered via a 120V to 5V transformer (always-on, acts as a Thread Router).
 
 ---
+
+## Thread-first setup notes
+
+These projects are now configured for Matter over Thread on ESP32-C6 by default. In practice this means:
+- the `button` project is set up as a sleepy end device (MTD),
+- the `light` project is set up as a full Thread device,
+- you will need a Thread border router or a Thread-capable network (for example an eero Pro 6e or similar) for commissioning and device-to-device communication.
+
+If you want to simplify the first bring-up, use the same Thread network for both devices and commission them from the same phone/network environment.
 
 ## Environment Setup & Prerequisites
 
@@ -54,17 +63,17 @@ You can compile and upload this project either using the **ESP-IDF VSCode Extens
 ### Option A: Using the ESP-IDF VSCode Extension
 1. Install the [ESP-IDF VSCode Extension](https://marketplace.visualstudio.com/items?itemName=espressif.esp-idf-extension) in VS Code.
 2. Open the project root folder `Matter_Notification_Device` in VS Code.
-3. Set the active folder/project to either `button_device` or `led_device`.
+3. Set the active folder/project to either `button` or `light`.
 4. Configure the ESP-IDF extension settings, target chipset (`esp32c6`), and SDK path/configuration if prompted.
 5. Click the **Build** icon (cylinder) on the VS Code status bar to compile.
 6. Connect your ESP32-C6 board via USB, choose the correct serial port, and click the **Flash** icon (lightning bolt) to upload the firmware.
 7. Click the **Monitor** icon (computer screen) to open the serial monitor and view logs.
 
 ### Option B: Using the ESP-IDF Command Line Interface (CLI)
-Follow these steps for **each** project (`button_device` and `led_device`):
+Follow these steps for **each** project (`button` and `light`):
 1. Navigate to the project directory:
    ```bash
-   cd button_device   # Or cd led_device
+   cd button   # Or cd light
    ```
 2. Set the build target to ESP32-C6:
    ```bash

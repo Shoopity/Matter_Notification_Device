@@ -45,7 +45,7 @@ fi
 
 # 5. Clear project cache artifacts in the workspace
 echo "-> Cleaning up project workspace cache..."
-cd /workspaces/Matter_Notification_Device/button_device
+cd /workspaces/Matter_Notification_Device/button
 rm -rf build sdkconfig sdkconfig.old managed_components dependencies.lock .shadow-plugin-configured
 
 echo "========= Setup Complete! Run 'load-matter' to start dev work ========="

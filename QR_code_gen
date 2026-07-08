@@ -26,21 +26,21 @@ cd ~/qr_out/out/fff1_8000/e2b52238-784f-4584-be9d-43d9b6a91c3b
 # It will generate a different QR than this one, but that's just because they used different error correction levels
 
 # Get the fctry offset from your project's partitions.csv, e.g.
-nano ~/code/Matter_Notification_Device/led_device/partitions.csv
-# Look for the row staring with "fctry", and the fourth column consisting of a memory address, e.g. 0x3E0000
+nano ~/code/Matter_Notification_Device/light/partitions.csv
+# Look for the row staring with "fctry", and the fourth column consisting of a memory address, e.g. 0x3F0000
 
 # Run the following command to write this info to the correct partition
 # esptool.py -p <port> -b <baud_rate> write_flash <partition_offset> path/to/bin_file.bin
 # * are accepted wildcards
 # E.G., if you're still in the directory containing the .bin:
-esptool.py -p /dev/ttyACM0 -b 460800 write_flash 0x3e0000 ./*.bin
+esptool.py -p /dev/ttyACM0 -b 460800 write_flash 0x3f0000 ./*.bin
 
 # Troubleshooting tool:
-# esptool.py -p /dev/ttyACM0 -b 460800 read_flash 0x3e0000 0x6000 verify_dump.bin
+# esptool.py -p /dev/ttyACM0 -b 460800 read_flash 0x3f0000 0x6000 verify_dump.bin
 # hexdump -C verify_dump.bin | head -n 20
 
 # To add this change to 
 # Copy (and rename) the bin file to the root of the project (where the CMake.txt file is), e.g.:
-# cp ~/qr_out/out/fff1_8000/42f7ae1b-e654-43a1-b097-a62f87aafb22/42f7ae1b-e654-43a1-b097-a62f87aafb22-partition.bin ~/code/Matter_Notification_Device/led_device/fctry.bin
+# cp ~/qr_out/out/fff1_8000/42f7ae1b-e654-43a1-b097-a62f87aafb22/42f7ae1b-e654-43a1-b097-a62f87aafb22-partition.bin ~/code/Matter_Notification_Device/light/fctry.bin
 # and add the following to the CMake.ext file located in the
 # esptool_py_flash_project_image(fctry "${CMAKE_SOURCE_DIR}/fctry.bin" 0x3e0000)
