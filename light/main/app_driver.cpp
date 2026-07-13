@@ -30,6 +30,7 @@
 #define ONBOARD_LED_ON_LEVEL  1
 #define ONBOARD_LED_OFF_LEVEL 0
 
+static const char *TAG = "app_driver";
 static bool onboard_led_initialized = false;
 
 static void onboard_led_init(void)
