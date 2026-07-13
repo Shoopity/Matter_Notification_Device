@@ -26,6 +26,38 @@
 // Seeed ESP32-C6 onboard LED pin?
 #define ONBOARD_LED_GPIO GPIO_NUM_15
 
+// Onboard LED output levels for this board.
+#define ONBOARD_LED_ON_LEVEL  1
+#define ONBOARD_LED_OFF_LEVEL 0
+
+static bool onboard_led_initialized = false;
+
+static void onboard_led_init(void)
+{
+    if (onboard_led_initialized) {
+        return;
+    }
+
+    gpio_config_t io_conf = {};
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = 1ULL << ONBOARD_LED_GPIO;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&io_conf);
+    onboard_led_initialized = true;
+    ESP_LOGI(TAG, "onboard_led_init: GPIO=%d configured as output", ONBOARD_LED_GPIO);
+}
+
+static void onboard_led_set(bool on)
+{
+    onboard_led_init();
+    int level = on ? ONBOARD_LED_ON_LEVEL : ONBOARD_LED_OFF_LEVEL;
+    gpio_set_level(ONBOARD_LED_GPIO, level);
+    int read_back = gpio_get_level(ONBOARD_LED_GPIO);
+    ESP_LOGI(TAG, "onboard_led_set(%s): GPIO=%d set_level=%d read_back=%d", on ? "ON" : "OFF", ONBOARD_LED_GPIO, level, read_back);
+}
+
 using namespace chip::app::Clusters;
 using namespace esp_matter;
 
@@ -93,9 +125,8 @@ static void app_driver_button_toggle_cb(void *arg, void *data)
 // This task is responsive—it checks blink_active before each GPIO toggle
 // so it can exit immediately if the light is turned OFF
 void led_blink_task(void *pvParameter) {
-    // 1. Setup the pin as an output
-    gpio_reset_pin(ONBOARD_LED_GPIO);
-    gpio_set_direction(ONBOARD_LED_GPIO, GPIO_MODE_OUTPUT);
+    // 1. Setup the pin as an output once
+    onboard_led_init();
     
     // 2. Loop 20 times (250ms per loop * 20 = 5 seconds)
     for (int i = 0; i < 20; i++) {
@@ -106,25 +137,24 @@ void led_blink_task(void *pvParameter) {
             return;
         }
         
-        gpio_set_level(ONBOARD_LED_GPIO, 1); // LED ON
+        onboard_led_set(true);
         vTaskDelay(pdMS_TO_TICKS(125));      // Wait 125ms
         
         // Check again before LED OFF to exit quickly if needed
         if (!blink_active) {
             ESP_LOGI(TAG, "Blink task: OFF command received during ON phase, exiting");
-            gpio_set_level(ONBOARD_LED_GPIO, 0); // Ensure LED is OFF before exiting
+            onboard_led_set(false); // Ensure LED is OFF before exiting
             vTaskDelete(NULL);
             return;
         }
         
-        gpio_set_level(ONBOARD_LED_GPIO, 0); // LED OFF
+        onboard_led_set(false);
         vTaskDelay(pdMS_TO_TICKS(125));      // Wait 125ms
     }
     
-    // 3. After 5 seconds of blinking, turn the LED OFF (not ON)
-    // This represents the final state after the ON command completes
-    gpio_set_level(ONBOARD_LED_GPIO, 0);
-    ESP_LOGI(TAG, "Blink task: completed 5 seconds, LED now OFF");
+    // 3. After 5 seconds of blinking, leave the LED ON as the light state is ON
+    onboard_led_set(true);
+    ESP_LOGI(TAG, "Blink task: completed 5 seconds, LED now ON (light is ON)");
     
     // 4. Tasks must delete themselves when finished in FreeRTOS!
     vTaskDelete(NULL);
@@ -142,19 +172,39 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
                 bool is_on = val->val.b; // Get the boolean (true = on, false = off)
                 
                 if (is_on) {
-                    ESP_LOGI(TAG, "OnOff: turning ON - starting 5-second blink");
-                    // Set flag to allow blinking, then launch the task
+                    ESP_LOGI(TAG, "OnOff: turning ON - starting 5-second blink notification");
+                    // Set flag to allow blinking, then launch the notification task
                     blink_active = true;
                     xTaskCreate(led_blink_task, "led_blink_task", 2048, NULL, 5, NULL);
+                    // Also turn on the main light via the led_driver
+                    err = app_driver_light_set_power(handle, val);
                 } else {
-                    ESP_LOGI(TAG, "OnOff: turning OFF - stopping any active blink");
+                    ESP_LOGI(TAG, "OnOff: turning OFF - stopping any active blink and turning off light");
                     // Signal the task to stop blinking (if one is running)
                     blink_active = false;
-                    // Immediately turn the LED off
-                    gpio_reset_pin(ONBOARD_LED_GPIO);
-                    gpio_set_direction(ONBOARD_LED_GPIO, GPIO_MODE_OUTPUT);
-                    gpio_set_level(ONBOARD_LED_GPIO, 0);
+                    // Immediately turn the onboard LED off
+                    onboard_led_set(false);
+                    // Also turn off the main light via the led_driver
+                    err = app_driver_light_set_power(handle, val);
                 }
+            }
+        } else if (cluster_id == LevelControl::Id) {
+            if (attribute_id == LevelControl::Attributes::CurrentLevel::Id) {
+                err = app_driver_light_set_brightness(handle, val);
+            }
+        } else if (cluster_id == ColorControl::Id) {
+            if (attribute_id == ColorControl::Attributes::CurrentHue::Id) {
+                err = app_driver_light_set_hue(handle, val);
+            } else if (attribute_id == ColorControl::Attributes::CurrentSaturation::Id) {
+                err = app_driver_light_set_saturation(handle, val);
+            } else if (attribute_id == ColorControl::Attributes::ColorTemperatureMireds::Id) {
+                err = app_driver_light_set_temperature(handle, val);
+            } else if (attribute_id == ColorControl::Attributes::CurrentX::Id) {
+                current_x = val->val.u16;
+                err = app_driver_light_set_xy(handle, current_x, current_y);
+            } else if (attribute_id == ColorControl::Attributes::CurrentY::Id) {
+                current_y = val->val.u16;
+                err = app_driver_light_set_xy(handle, current_x, current_y);
             }
         }
     }
