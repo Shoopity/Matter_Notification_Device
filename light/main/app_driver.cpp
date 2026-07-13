@@ -27,8 +27,8 @@
 #define ONBOARD_LED_GPIO GPIO_NUM_15
 
 // Onboard LED output levels for this board.
-#define ONBOARD_LED_ON_LEVEL  1
-#define ONBOARD_LED_OFF_LEVEL 0
+#define ONBOARD_LED_ON_LEVEL  0
+#define ONBOARD_LED_OFF_LEVEL 1
 
 static const char *TAG = "app_driver";
 static bool onboard_led_initialized = false;
@@ -62,7 +62,6 @@ static void onboard_led_set(bool on)
 using namespace chip::app::Clusters;
 using namespace esp_matter;
 
-static const char *TAG = "app_driver";
 extern uint16_t light_endpoint_id;
 
 // Global variables to store current XY color coordinates
