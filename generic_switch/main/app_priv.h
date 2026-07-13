@@ -16,6 +16,9 @@
 #include "esp_openthread_types.h"
 #endif
 
+extern uint16_t button_endpoint_id;
+extern uint16_t led_endpoint_id;
+
 struct gpio_button {
     gpio_num_t GPIO_PIN_VALUE;
 };
@@ -25,7 +28,6 @@ struct button_endpoint {
     uint16_t endpoint;
 };
 
-extern int get_endpoint(gpio_button* button);
 
 typedef void *app_driver_handle_t;
 

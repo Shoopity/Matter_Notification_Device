@@ -19,8 +19,8 @@ CONFIG_ENABLE_CHIP_SHELL=y
 
 CONFIG_ENABLE_WIFI_AP=n
 
-# This example only use 2 dynamic endpoints
-CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT=2
+# This example uses 3 dynamic endpoints (root node + button state + LED indicator)
+CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT=3
 
 #enable lwIP route hooks
 CONFIG_LWIP_HOOK_IP6_ROUTE_DEFAULT=y

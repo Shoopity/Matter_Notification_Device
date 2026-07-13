@@ -16,139 +16,94 @@
 #include <iot_button.h>
 #include <button_gpio.h>
 
+#include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 #if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S3
 #define BUTTON_GPIO_PIN GPIO_NUM_0
 #else // CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32C2
 #define BUTTON_GPIO_PIN GPIO_NUM_9
 #endif
 
+// Seeed ESP32-C6 onboard LED pin
+#define ONBOARD_LED_GPIO GPIO_NUM_15
+
+// Onboard LED output levels for this board.
+#define ONBOARD_LED_ON_LEVEL  0
+#define ONBOARD_LED_OFF_LEVEL 1
+
+uint16_t button_endpoint_id = 0;
+uint16_t led_endpoint_id = 0;
+
+static const char *TAG = "app_driver";
+static bool onboard_led_initialized = false;
+
+static void onboard_led_init(void)
+{
+    if (onboard_led_initialized) {
+        return;
+    }
+
+    gpio_config_t io_conf = {};
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = 1ULL << ONBOARD_LED_GPIO;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&io_conf);
+    onboard_led_initialized = true;
+    ESP_LOGI(TAG, "onboard_led_init: GPIO=%d configured as output", ONBOARD_LED_GPIO);
+}
+
+static void onboard_led_set(bool on)
+{
+    onboard_led_init();
+    int level = on ? ONBOARD_LED_ON_LEVEL : ONBOARD_LED_OFF_LEVEL;
+    gpio_set_level(ONBOARD_LED_GPIO, level);
+    ESP_LOGI(TAG, "onboard_led_set(%s): GPIO=%d", on ? "ON" : "OFF", ONBOARD_LED_GPIO);
+}
+
 using namespace chip::app::Clusters;
 using namespace esp_matter;
 using namespace esp_matter::cluster;
 
-static const char *TAG = "app_driver";
-
-static void driver_set_switch_current_position(uint16_t endpoint_id, uint8_t position)
+static void app_driver_button_toggle_cb(void *arg, void *data)
 {
-    esp_matter_attr_val_t val(position);
-    esp_err_t err = esp_matter::attribute::update(endpoint_id, Switch::Id, Switch::Attributes::CurrentPosition::Id, &val);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Switch CurrentPosition update failed: %s", esp_err_to_name(err));
+    ESP_LOGI(TAG, "Toggle button pressed");
+    uint16_t endpoint_id = button_endpoint_id;
+    uint32_t cluster_id = OnOff::Id;
+    uint32_t attribute_id = OnOff::Attributes::OnOff::Id;
+
+    attribute_t *attribute = attribute::get(endpoint_id, cluster_id, attribute_id);
+    if (!attribute) {
+        ESP_LOGE(TAG, "Failed to get attribute for button endpoint %d", endpoint_id);
+        return;
     }
+
+    esp_matter_attr_val_t val;
+    attribute::get_val(attribute, &val);
+    bool next_state = !val.val.b;
+
+    chip::DeviceLayer::SystemLayer().ScheduleLambda([endpoint_id, cluster_id, attribute_id, next_state]() {
+        esp_matter_attr_val_t update_val = esp_matter_bool(next_state);
+        attribute::update(endpoint_id, cluster_id, attribute_id, &update_val);
+    });
 }
 
 esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_t endpoint_id, uint32_t cluster_id,
                                       uint32_t attribute_id, esp_matter_attr_val_t *val)
 {
     esp_err_t err = ESP_OK;
+    if (endpoint_id == led_endpoint_id) {
+        if (cluster_id == OnOff::Id) {
+            if (attribute_id == OnOff::Attributes::OnOff::Id) {
+                onboard_led_set(val->val.b);
+            }
+        }
+    }
     return err;
 }
-
-#if CONFIG_GENERIC_SWITCH_TYPE_LATCHING
-static uint8_t latching_switch_previous_position = 0;
-static void app_driver_button_switch_latched(void *arg, void *data)
-{
-    ESP_LOGI(TAG, "Switch lached pressed");
-    gpio_button * button = (gpio_button*)data;
-    int switch_endpoint_id = (button != NULL) ? get_endpoint(button) : 1;
-    // Press moves Position from 0 (idle) to 1 (press) and vice versa
-    uint8_t newPosition = (latching_switch_previous_position == 1) ? 0 : 1;
-    latching_switch_previous_position = newPosition;
-    chip::DeviceLayer::SystemLayer().ScheduleLambda([switch_endpoint_id, newPosition]() {
-        driver_set_switch_current_position(static_cast<uint16_t>(switch_endpoint_id), newPosition);
-        // SwitchLatched event takes newPosition as event data
-        switch_cluster::event::send_switch_latched(switch_endpoint_id, newPosition);
-    });
-}
-#endif
-#if CONFIG_GENERIC_SWITCH_TYPE_MOMENTARY
-static int current_number_of_presses_counted = 1;
-static bool is_multipress = 0;
-static uint8_t idlePosition    = 0;
-
-static void app_driver_button_initial_pressed(void *arg, void *data)
-{
-    if (!is_multipress) {
-        ESP_LOGI(TAG, "Initial button pressed");
-        gpio_button * button = (gpio_button*)data;
-        int switch_endpoint_id = (button != NULL) ? get_endpoint(button) : 1;
-        // Press moves Position from 0 (idle) to 1 (press)
-        uint8_t newPosition     = 1;
-        chip::DeviceLayer::SystemLayer().ScheduleLambda([switch_endpoint_id, newPosition]() {
-            driver_set_switch_current_position(static_cast<uint16_t>(switch_endpoint_id), newPosition);
-            // InitialPress event takes newPosition as event data
-            switch_cluster::event::send_initial_press(switch_endpoint_id, newPosition);
-        });
-        is_multipress = 1;
-    }
-}
-
-static void app_driver_button_release(void *arg, void *data)
-{
-
-    gpio_button *button = (gpio_button *)data;
-    int switch_endpoint_id = (button != NULL) ? get_endpoint(button) : 1;
-    chip::DeviceLayer::SystemLayer().ScheduleLambda([switch_endpoint_id]() {
-        driver_set_switch_current_position(static_cast<uint16_t>(switch_endpoint_id), idlePosition);
-    });
-}
-
-static void app_driver_button_multipress_ongoing(void *arg, void *data)
-{
-    ESP_LOGI(TAG, "Multipress Ongoing");
-    gpio_button * button = (gpio_button *)data;
-    int switch_endpoint_id = (button != NULL) ? get_endpoint(button) : 1;
-    // Press moves Position from 0 (idle) to 1 (press)
-    uint8_t newPosition = 1;
-    current_number_of_presses_counted++;
-    uint16_t endpoint_id = switch_endpoint_id;
-    uint32_t cluster_id = Switch::Id;
-    uint32_t attribute_id = Switch::Attributes::FeatureMap::Id;
-
-    attribute_t *attribute = attribute::get(endpoint_id, cluster_id, attribute_id);
-
-    esp_matter_attr_val_t val;
-    attribute::get_val(attribute, &val);
-
-    uint32_t feature_map = val.val.u32;
-    uint32_t msm_feature_map = switch_cluster::feature::momentary_switch_multi_press::get_id();
-    uint32_t as_feature_map = switch_cluster::feature::action_switch::get_id();
-    if (((feature_map & msm_feature_map) == msm_feature_map) && ((feature_map & as_feature_map) != as_feature_map)) {
-        chip::DeviceLayer::SystemLayer().ScheduleLambda([switch_endpoint_id, newPosition]() {
-            driver_set_switch_current_position(static_cast<uint16_t>(switch_endpoint_id), newPosition);
-            // MultiPress Ongoing event takes newPosition and current_number_of_presses_counted as event data
-            switch_cluster::event::send_multi_press_ongoing(switch_endpoint_id, newPosition, current_number_of_presses_counted);
-        });
-    }
-}
-
-static void app_driver_button_multipress_complete(void *arg, void *data)
-{
-    ESP_LOGI(TAG, "Multipress Complete");
-    gpio_button * button = (gpio_button *)data;
-    int switch_endpoint_id = (button != NULL) ? get_endpoint(button) : 1;
-    // Press moves Position from 0 (idle) to 1 (press)
-    uint8_t previousPosition = 1;
-    uint16_t endpoint_id = switch_endpoint_id;
-    uint32_t cluster_id = Switch::Id;
-    uint32_t attribute_id = Switch::Attributes::MultiPressMax::Id;
-
-    attribute_t *attribute = attribute::get(endpoint_id, cluster_id, attribute_id);
-
-    esp_matter_attr_val_t val;
-    attribute::get_val(attribute, &val);
-    uint8_t multipress_max = val.val.u8;
-    int total_number_of_presses_counted = (current_number_of_presses_counted > multipress_max) ? 0 : current_number_of_presses_counted;
-    chip::DeviceLayer::SystemLayer().ScheduleLambda([switch_endpoint_id, previousPosition, total_number_of_presses_counted]() {
-        driver_set_switch_current_position(static_cast<uint16_t>(switch_endpoint_id), idlePosition);
-        // MultiPress Complete event takes previousPosition and total_number_of_presses_counted as event data
-        switch_cluster::event::send_multi_press_complete(switch_endpoint_id, previousPosition, total_number_of_presses_counted);
-        // Reset current_number_of_presses_counted to initial value
-        current_number_of_presses_counted = 1;
-    });
-    is_multipress = 0;
-}
-#endif
 
 app_driver_handle_t app_driver_button_init(gpio_button * button)
 {
@@ -176,15 +131,6 @@ app_driver_handle_t app_driver_button_init(gpio_button * button)
         }
     }
 
-#if CONFIG_GENERIC_SWITCH_TYPE_LATCHING
-    iot_button_register_cb(handle, BUTTON_PRESS_DOWN, NULL, app_driver_button_switch_latched, button);
-#endif
-
-#if CONFIG_GENERIC_SWITCH_TYPE_MOMENTARY
-    iot_button_register_cb(handle, BUTTON_PRESS_DOWN, NULL, app_driver_button_initial_pressed, button);
-    iot_button_register_cb(handle, BUTTON_PRESS_UP, NULL, app_driver_button_release, button);
-    iot_button_register_cb(handle, BUTTON_PRESS_REPEAT, NULL, app_driver_button_multipress_ongoing, button);
-    iot_button_register_cb(handle, BUTTON_PRESS_REPEAT_DONE, NULL, app_driver_button_multipress_complete, button);
-#endif
+    iot_button_register_cb(handle, BUTTON_PRESS_DOWN, NULL, app_driver_button_toggle_cb, NULL);
     return (app_driver_handle_t)handle;
 }

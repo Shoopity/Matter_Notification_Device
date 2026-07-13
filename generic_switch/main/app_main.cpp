@@ -26,8 +26,6 @@
 
 static const char *TAG = "app_main";
 
-static uint16_t configured_buttons = 0;
-static button_endpoint button_list[CONFIG_MAX_CONFIGURABLE_BUTTONS];
 
 using namespace esp_matter;
 using namespace esp_matter::attribute;
@@ -127,79 +125,9 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16
     return err;
 }
 
-static esp_err_t create_button(struct gpio_button* button, node_t* node)
-{
-    esp_err_t err = ESP_OK;
-
-    /* Initialize driver */
-    app_driver_handle_t button_handle = app_driver_button_init(button);
-
-    /* Create a new endpoint. */
-    generic_switch::config_t switch_config;
-    switch_config.switch_cluster.feature_flags =
-#if CONFIG_GENERIC_SWITCH_TYPE_LATCHING
-        cluster::switch_cluster::feature::latching_switch::get_id();
-#endif
-
-#if CONFIG_GENERIC_SWITCH_TYPE_MOMENTARY
-    cluster::switch_cluster::feature::momentary_switch::get_id();
-#endif
-
-    endpoint_t *endpoint = generic_switch::create(node, &switch_config, ENDPOINT_FLAG_NONE, button_handle);
-
-    cluster_t* descriptor = cluster::get(endpoint, Descriptor::Id);
-    descriptor::feature::tag_list::add(descriptor);
-
-    /* These node and endpoint handles can be used to create/add other endpoints and clusters. */
-    if (!node || !endpoint) {
-        ESP_LOGE(TAG, "Matter node creation failed");
-        err = ESP_FAIL;
-        return err;
-    }
-
-    for (int i = 0; i < configured_buttons; i++) {
-        if (button_list[i].button == button) {
-            break;
-        }
-    }
-
-    /* Check for maximum physical buttons that can be configured. */
-    if (configured_buttons < CONFIG_MAX_CONFIGURABLE_BUTTONS) {
-        button_list[configured_buttons].button = button;
-        button_list[configured_buttons].endpoint = endpoint::get_id(endpoint);
-        configured_buttons++;
-    } else {
-        ESP_LOGI(TAG, "Cannot configure more buttons");
-        err = ESP_FAIL;
-        return err;
-    }
-
-    static uint16_t generic_switch_endpoint_id = 0;
-    generic_switch_endpoint_id = endpoint::get_id(endpoint);
-    ESP_LOGI(TAG, "Generic Switch created with endpoint_id %d", generic_switch_endpoint_id);
-
-    /* Add additional features to the node */
-    cluster_t *cluster = cluster::get(endpoint, Switch::Id);
-
-#if CONFIG_GENERIC_SWITCH_TYPE_MOMENTARY
-    cluster::switch_cluster::feature::action_switch::add(cluster);
-    cluster::switch_cluster::feature::momentary_switch_multi_press::config_t msm;
-    msm.multi_press_max = 5;
-    cluster::switch_cluster::feature::momentary_switch_multi_press::add(cluster, &msm);
-#endif
-
-    return err;
-}
-
-int get_endpoint(gpio_button* button)
-{
-    for (int i = 0; i < configured_buttons; i++) {
-        if (button_list[i].button == button) {
-            return button_list[i].endpoint;
-        }
-    }
-    return -1;
-}
+static gpio_button tac_button = {
+    .GPIO_PIN_VALUE = GPIO_NUM_6
+};
 
 extern "C" void app_main()
 {
@@ -213,18 +141,27 @@ extern "C" void app_main()
     node_t *node = node::create(&node_config, app_attribute_update_cb, app_identification_cb);
     ABORT_APP_ON_FAILURE(node != nullptr, ESP_LOGE(TAG, "Failed to create Matter node"));
 
-    /* Call for Boot button */
-    err = create_button(NULL, node);
-    ABORT_APP_ON_FAILURE(err == ESP_OK, ESP_LOGE(TAG, "Failed to create generic switch button"));
+    /* Initialize button drivers */
+    app_driver_button_init(NULL);         // Onboard BOOT Button (GPIO 9)
+    app_driver_button_init(&tac_button);  // Momentary Tac Switch (GPIO 6)
 
-    /* Use the code snippet commented below to create more physical buttons. */
+    /* Create On/Off Light endpoint 1 to represent the Button state */
+    on_off_light::config_t button_config;
+    button_config.on_off.on_off = false;
+    endpoint_t *ep1 = on_off_light::create(node, &button_config, ENDPOINT_FLAG_NONE, NULL);
+    ABORT_APP_ON_FAILURE(ep1 != nullptr, ESP_LOGE(TAG, "Failed to create button endpoint"));
+    button_endpoint_id = endpoint::get_id(ep1);
 
-    /*  // Creating a gpio button. More buttons can be created in the same fashion specifying GPIO_PIN_VALUE.
-     *  struct gpio_button button;
-     *  button.GPIO_PIN_VALUE = GPIO_NUM_6;
-     *  // Call to createButton function to configure your button.
-     *  create_button(&button, node);
-     */
+    /* Create On/Off Light endpoint 2 to represent the Onboard LED feedback */
+    on_off_light::config_t led_config;
+    led_config.on_off.on_off = false;
+    endpoint_t *ep2 = on_off_light::create(node, &led_config, ENDPOINT_FLAG_NONE, NULL);
+    ABORT_APP_ON_FAILURE(ep2 != nullptr, ESP_LOGE(TAG, "Failed to create LED endpoint"));
+    led_endpoint_id = endpoint::get_id(ep2);
+
+    ESP_LOGI(TAG, "Button Endpoint created with ID %d", button_endpoint_id);
+    ESP_LOGI(TAG, "LED Endpoint created with ID %d", led_endpoint_id);
+
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
     /* Set OpenThread platform config */
     esp_openthread_platform_config_t config = {
@@ -243,9 +180,7 @@ extern "C" void app_main()
     enable_insights(insights_auth_key_start);
 #endif
 
-    endpoint_t *ep1 = endpoint::get(1);
     endpoint::set_semantic_tags(ep1, gEp1TagList, 2);
-    endpoint_t *ep2 = endpoint::get(2);
     endpoint::set_semantic_tags(ep2, gEp2TagList, 2);
 
 #if CONFIG_ENABLE_CHIP_SHELL
