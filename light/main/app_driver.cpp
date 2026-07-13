@@ -36,6 +36,9 @@ extern uint16_t light_endpoint_id;
 static uint16_t current_x = 0;
 static uint16_t current_y = 0;
 
+// Flag to control whether the blink task should continue running
+static volatile bool blink_active = false;
+
 /* Do any conversions/remapping for the actual value here */
 static esp_err_t app_driver_light_set_power(led_driver_handle_t handle, esp_matter_attr_val_t *val)
 {
@@ -87,21 +90,44 @@ static void app_driver_button_toggle_cb(void *arg, void *data)
 }
 
 // Blink the on-board LED 4 times/sec, for 5 seconds
+// This task is responsive—it checks blink_active before each GPIO toggle
+// so it can exit immediately if the light is turned OFF
 void led_blink_task(void *pvParameter) {
     // 1. Setup the pin as an output
     gpio_reset_pin(ONBOARD_LED_GPIO);
     gpio_set_direction(ONBOARD_LED_GPIO, GPIO_MODE_OUTPUT);
+    
     // 2. Loop 20 times (250ms per loop * 20 = 5 seconds)
     for (int i = 0; i < 20; i++) {
+        // Check if blinking should continue. If OFF was called, exit immediately
+        if (!blink_active) {
+            ESP_LOGI(TAG, "Blink task: OFF command received, exiting early");
+            vTaskDelete(NULL);
+            return;
+        }
+        
         gpio_set_level(ONBOARD_LED_GPIO, 1); // LED ON
         vTaskDelay(pdMS_TO_TICKS(125));      // Wait 125ms
+        
+        // Check again before LED OFF to exit quickly if needed
+        if (!blink_active) {
+            ESP_LOGI(TAG, "Blink task: OFF command received during ON phase, exiting");
+            gpio_set_level(ONBOARD_LED_GPIO, 0); // Ensure LED is OFF before exiting
+            vTaskDelete(NULL);
+            return;
+        }
+        
         gpio_set_level(ONBOARD_LED_GPIO, 0); // LED OFF
         vTaskDelay(pdMS_TO_TICKS(125));      // Wait 125ms
     }
-    // 3. Leave the LED on after the 5 seconds, since the command was "Turn On"
-    // gpio_set_level(ONBOARD_LED_GPIO, 1);
+    
+    // 3. After 5 seconds of blinking, turn the LED OFF (not ON)
+    // This represents the final state after the ON command completes
+    gpio_set_level(ONBOARD_LED_GPIO, 0);
+    ESP_LOGI(TAG, "Blink task: completed 5 seconds, LED now OFF");
+    
     // 4. Tasks must delete themselves when finished in FreeRTOS!
-    vTaskDelete(NULL); 
+    vTaskDelete(NULL);
 }
 
 esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_t endpoint_id, uint32_t cluster_id,
@@ -116,9 +142,14 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
                 bool is_on = val->val.b; // Get the boolean (true = on, false = off)
                 
                 if (is_on) {
-                    // Launch our blinking thread in the background
+                    ESP_LOGI(TAG, "OnOff: turning ON - starting 5-second blink");
+                    // Set flag to allow blinking, then launch the task
+                    blink_active = true;
                     xTaskCreate(led_blink_task, "led_blink_task", 2048, NULL, 5, NULL);
                 } else {
+                    ESP_LOGI(TAG, "OnOff: turning OFF - stopping any active blink");
+                    // Signal the task to stop blinking (if one is running)
+                    blink_active = false;
                     // Immediately turn the LED off
                     gpio_reset_pin(ONBOARD_LED_GPIO);
                     gpio_set_direction(ONBOARD_LED_GPIO, GPIO_MODE_OUTPUT);
