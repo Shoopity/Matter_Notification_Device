@@ -38,6 +38,12 @@
 using namespace chip::DeviceLayer;
 #endif
 
+// Stuff so we can override the default discriminator
+#include <platform/CHIPDeviceLayer.h>
+#include <platform/CommissionableDataProvider.h>
+#include <platform/ESP32/ESP32Config.h>
+#include <setup_payload/OnboardingCodesUtil.h>
+
 static const char *TAG = "app_main";
 uint16_t light_endpoint_id = 0;
 
@@ -243,6 +249,28 @@ extern "C" void app_main()
     /* Matter start */
     err = esp_matter::start(app_event_cb);
     ABORT_APP_ON_FAILURE(err == ESP_OK, ESP_LOGE(TAG, "Failed to start Matter, err:%d", err));
+
+    /* Safely override the discriminator in NVS */
+    uint16_t current_discriminator = 0;
+    
+    /* Use the modern provider to GET the discriminator */
+    chip::DeviceLayer::GetCommissionableDataProvider()->GetSetupDiscriminator(current_discriminator);
+    
+    if (current_discriminator != 3841) {
+        ESP_LOGI(TAG, "Overriding hardcoded discriminator in NVS...");
+        
+        /* Bypass the missing setter and write directly to the ESP32 NVS backend */
+        chip::DeviceLayer::Internal::ESP32Config::WriteConfigValue(
+            chip::DeviceLayer::Internal::ESP32Config::kConfigKey_SetupDiscriminator,
+            static_cast<uint32_t>(3841)
+        );
+        
+        ESP_LOGI(TAG, "Rebooting to apply new discriminator...");
+        esp_restart();
+    }
+
+    /* Force print the QR Code and MT Code regardless of reboot count */
+    PrintOnboardingCodes(chip::RendezvousInformationFlags(chip::RendezvousInformationFlag::kBLE));
 
     MEMORY_PROFILER_DUMP_HEAP_STAT("matter started");
 
