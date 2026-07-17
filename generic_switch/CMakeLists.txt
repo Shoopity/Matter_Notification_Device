@@ -6,6 +6,8 @@ if(NOT DEFINED ENV{ESP_MATTER_PATH})
     message(FATAL_ERROR "Please set ESP_MATTER_PATH to the path of esp-matter repo")
 endif(NOT DEFINED ENV{ESP_MATTER_PATH})
 
+# add_compile_options("-Wno-error=undef")
+
 set(PROJECT_VER "1.0")
 set(PROJECT_VER_NUMBER 1)
 
