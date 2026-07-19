@@ -68,27 +68,91 @@ using namespace chip::app::Clusters;
 using namespace esp_matter;
 using namespace esp_matter::cluster;
 
-static void app_driver_button_toggle_cb(void *arg, void *data)
+/* ---------- Momentary switch state ---------- */
+static int  s_press_count   = 1;
+static bool s_multipress    = false;
+static const uint8_t kIdlePosition = 0;
+static const uint8_t kPressPosition = 1;
+
+static void driver_set_switch_position(uint16_t endpoint_id, uint8_t position)
 {
-    ESP_LOGI(TAG, "Toggle button pressed");
-    uint16_t endpoint_id = button_endpoint_id;
-    uint32_t cluster_id = OnOff::Id;
-    uint32_t attribute_id = OnOff::Attributes::OnOff::Id;
-
-    attribute_t *attribute = attribute::get(endpoint_id, cluster_id, attribute_id);
-    if (!attribute) {
-        ESP_LOGE(TAG, "Failed to get attribute for button endpoint %d", endpoint_id);
-        return;
+    esp_matter_attr_val_t val = esp_matter_uint8(position);
+    esp_err_t err = attribute::update(endpoint_id, Switch::Id,
+                                      Switch::Attributes::CurrentPosition::Id, &val);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Switch CurrentPosition update failed: %s", esp_err_to_name(err));
     }
+}
 
-    esp_matter_attr_val_t val;
-    attribute::get_val(attribute, &val);
-    bool next_state = !val.val.b;
+/* Called on first PRESS_DOWN of any press sequence */
+static void app_driver_button_initial_pressed(void *arg, void *data)
+{
+    if (!s_multipress) {
+        ESP_LOGI(TAG, "Initial button press");
+        uint16_t ep = button_endpoint_id;
+        chip::DeviceLayer::SystemLayer().ScheduleLambda([ep]() {
+            driver_set_switch_position(ep, kPressPosition);
+            switch_cluster::event::send_initial_press(ep, kPressPosition);
+        });
+        s_multipress = true;
+    }
+}
 
-    chip::DeviceLayer::SystemLayer().ScheduleLambda([endpoint_id, cluster_id, attribute_id, next_state]() {
-        esp_matter_attr_val_t update_val = esp_matter_bool(next_state);
-        attribute::update(endpoint_id, cluster_id, attribute_id, &update_val);
+/* Called on PRESS_UP — reset position to idle */
+static void app_driver_button_release(void *arg, void *data)
+{
+    uint16_t ep = button_endpoint_id;
+    chip::DeviceLayer::SystemLayer().ScheduleLambda([ep]() {
+        driver_set_switch_position(ep, kIdlePosition);
     });
+}
+
+/* Called each time a subsequent press is detected within the multi-press window */
+static void app_driver_button_multipress_ongoing(void *arg, void *data)
+{
+    ESP_LOGI(TAG, "Multi-press ongoing");
+    uint16_t ep = button_endpoint_id;
+    s_press_count++;
+
+    /* Only emit MultiPressOngoing when MSM feature is present and AS is not */
+    uint32_t cluster_id    = Switch::Id;
+    uint32_t attribute_id  = Switch::Attributes::FeatureMap::Id;
+    attribute_t *attr = attribute::get(ep, cluster_id, attribute_id);
+    esp_matter_attr_val_t val;
+    attribute::get_val(attr, &val);
+    uint32_t feature_map = val.val.u32;
+    uint32_t msm_flag = switch_cluster::feature::momentary_switch_multi_press::get_id();
+    uint32_t as_flag  = switch_cluster::feature::action_switch::get_id();
+
+    if ((feature_map & msm_flag) && !(feature_map & as_flag)) {
+        int count = s_press_count;
+        chip::DeviceLayer::SystemLayer().ScheduleLambda([ep, count]() {
+            driver_set_switch_position(ep, kPressPosition);
+            switch_cluster::event::send_multi_press_ongoing(ep, kPressPosition, count);
+        });
+    }
+}
+
+/* Called when the multi-press window closes */
+static void app_driver_button_multipress_complete(void *arg, void *data)
+{
+    ESP_LOGI(TAG, "Multi-press complete (%d presses)", s_press_count);
+    uint16_t ep = button_endpoint_id;
+
+    /* Clamp to MultiPressMax */
+    attribute_t *attr = attribute::get(ep, Switch::Id, Switch::Attributes::MultiPressMax::Id);
+    esp_matter_attr_val_t val;
+    attribute::get_val(attr, &val);
+    uint8_t max_presses = val.val.u8;
+    int total = (s_press_count > max_presses) ? 0 : s_press_count;
+
+    chip::DeviceLayer::SystemLayer().ScheduleLambda([ep, total]() {
+        driver_set_switch_position(ep, kIdlePosition);
+        switch_cluster::event::send_multi_press_complete(ep, kPressPosition, total);
+    });
+
+    s_press_count = 1;
+    s_multipress  = false;
 }
 
 esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_t endpoint_id, uint32_t cluster_id,
@@ -105,32 +169,27 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
     return err;
 }
 
-app_driver_handle_t app_driver_button_init(gpio_button * button)
+app_driver_handle_t app_driver_button_init(gpio_button *button)
 {
-    /* Initialize button */
     button_handle_t handle = NULL;
     const button_config_t btn_cfg = {0};
 
-    if (button != NULL) {
-        const button_gpio_config_t btn_gpio_cfg = {
-            .gpio_num = button->GPIO_PIN_VALUE,
-            .active_level = 0,
-        };
-        if (iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg, &handle) != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to create button device");
-            return NULL;
-        }
-    } else {
-        const button_gpio_config_t btn_gpio_cfg = {
-            .gpio_num = BUTTON_GPIO_PIN,
-            .active_level = 0,
-        };
-        if (iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg, &handle) != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to create button device");
-            return NULL;
-        }
+    /* Only the default GPIO 9 path is used — both the onboard BOOT button and
+       the external tactile switch are wired in parallel to GPIO 9. */
+    const button_gpio_config_t btn_gpio_cfg = {
+        .gpio_num    = BUTTON_GPIO_PIN,
+        .active_level = 0,
+    };
+    if (iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg, &handle) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create button device");
+        return NULL;
     }
 
-    iot_button_register_cb(handle, BUTTON_PRESS_DOWN, NULL, app_driver_button_toggle_cb, NULL);
+    iot_button_register_cb(handle, BUTTON_PRESS_DOWN,        NULL, app_driver_button_initial_pressed,    NULL);
+    iot_button_register_cb(handle, BUTTON_PRESS_UP,          NULL, app_driver_button_release,            NULL);
+    iot_button_register_cb(handle, BUTTON_PRESS_REPEAT,      NULL, app_driver_button_multipress_ongoing, NULL);
+    iot_button_register_cb(handle, BUTTON_PRESS_REPEAT_DONE, NULL, app_driver_button_multipress_complete,NULL);
+
     return (app_driver_handle_t)handle;
 }
+

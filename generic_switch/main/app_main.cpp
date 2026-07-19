@@ -131,10 +131,6 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16
     return err;
 }
 
-static gpio_button tac_button = {
-    .GPIO_PIN_VALUE = GPIO_NUM_6
-};
-
 extern "C" void app_main()
 {
     esp_err_t err = ESP_OK;
@@ -149,14 +145,20 @@ extern "C" void app_main()
 
     /* Initialize button drivers */
     app_driver_button_init(NULL);         // Onboard BOOT Button (GPIO 9)
-    app_driver_button_init(&tac_button);  // Momentary Tac Switch (GPIO 6)
 
-    /* Create On/Off Light endpoint 1 to represent the Button state */
-    on_off_light::config_t button_config;
-    button_config.on_off.on_off = false;
-    endpoint_t *ep1 = on_off_light::create(node, &button_config, ENDPOINT_FLAG_NONE, NULL);
+    /* Create Generic Switch endpoint 1 to represent the Button state */
+    generic_switch::config_t button_config;
+    button_config.switch_cluster.feature_flags = cluster::switch_cluster::feature::momentary_switch::get_id();
+    endpoint_t *ep1 = generic_switch::create(node, &button_config, ENDPOINT_FLAG_NONE, NULL);
     ABORT_APP_ON_FAILURE(ep1 != nullptr, ESP_LOGE(TAG, "Failed to create button endpoint"));
     button_endpoint_id = endpoint::get_id(ep1);
+
+    /* Add additional features to the Switch cluster on ep1 */
+    cluster_t *switch_cluster = cluster::get(ep1, Switch::Id);
+    cluster::switch_cluster::feature::action_switch::add(switch_cluster);
+    cluster::switch_cluster::feature::momentary_switch_multi_press::config_t msm;
+    msm.multi_press_max = 5;
+    cluster::switch_cluster::feature::momentary_switch_multi_press::add(switch_cluster, &msm);
 
     /* Create On/Off Light endpoint 2 to represent the Onboard LED feedback */
     on_off_light::config_t led_config;
