@@ -42,6 +42,9 @@ typedef void *app_driver_handle_t;
  */
 app_driver_handle_t app_driver_button_init(gpio_button *button = NULL);
 
+void app_driver_client_callback(esp_matter::client::peer_device_t *peer_device, esp_matter::client::request_handle_t *req_handle, void *priv_data);
+void app_driver_client_group_invoke_command_callback(uint8_t fabric_index, esp_matter::client::request_handle_t *req_handle, void *priv_data);
+
 /** Driver Update
  *
  * This API should be called to update the driver for the attribute being updated.

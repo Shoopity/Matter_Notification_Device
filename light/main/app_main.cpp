@@ -206,8 +206,20 @@ extern "C" void app_main()
     endpoint_t *endpoint = extended_color_light::create(node, &light_config, ENDPOINT_FLAG_NONE, light_handle);
     ABORT_APP_ON_FAILURE(endpoint != nullptr, ESP_LOGE(TAG, "Failed to create extended color light endpoint"));
 
+    /* Add Binding cluster to allow linking to other devices */
+    cluster::binding::config_t binding_config;
+    cluster::binding::create(endpoint, &binding_config, CLUSTER_FLAG_SERVER | CLUSTER_FLAG_CLIENT);
+
+    /* Add On/Off client cluster to allow sending On/Off commands */
+    cluster::on_off::config_t on_off_client_config;
+    cluster::on_off::create(endpoint, &on_off_client_config, CLUSTER_FLAG_CLIENT);
+
     light_endpoint_id = endpoint::get_id(endpoint);
     ESP_LOGI(TAG, "Light created with endpoint_id %d", light_endpoint_id);
+
+    /* Register client callbacks to handle outgoing Matter commands */
+    client::set_request_callback(app_driver_client_callback,
+                                 app_driver_client_group_invoke_command_callback, NULL);
 
     /* Mark deferred persistence for some attributes that might be changed rapidly */
     attribute_t *current_level_attribute = attribute::get(light_endpoint_id, LevelControl::Id, LevelControl::Attributes::CurrentLevel::Id);
