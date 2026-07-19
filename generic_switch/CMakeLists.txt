@@ -36,6 +36,9 @@ if (CONFIG_ENABLE_ESP_INSIGHTS_TRACE)
 endif()
 
 idf_build_set_property(CXX_COMPILE_OPTIONS "-std=gnu++17;-Os;-DCHIP_HAVE_CONFIG_H" APPEND)
+# Force-include our device identity overrides before any Matter SDK headers.
+# This ensures the #ifndef guards in CHIPDeviceConfig.h see our values first.
+idf_build_set_property(CXX_COMPILE_OPTIONS "-include;${CMAKE_CURRENT_SOURCE_DIR}/main/app_config.h" APPEND)
 idf_build_set_property(C_COMPILE_OPTIONS "-Os" APPEND)
 # For RISCV chips, project_include.cmake sets -Wno-format, but does not clear various
 # flags that depend on -Wformat

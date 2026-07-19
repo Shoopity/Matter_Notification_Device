@@ -1,0 +1,6 @@
+#pragma once
+
+// Device Identity Overrides
+#define CHIP_DEVICE_CONFIG_DEVICE_PRODUCT_NAME "Notification_Light"
+#define CHIP_DEVICE_CONFIG_DEVICE_VENDOR_NAME "Shoopity"
+#define CHIP_DEVICE_CONFIG_DEFAULT_DEVICE_HARDWARE_VERSION_STRING "1.0"
