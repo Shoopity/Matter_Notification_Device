@@ -69,8 +69,9 @@ using namespace esp_matter;
 using namespace esp_matter::cluster;
 
 /* ---------- Momentary switch state ---------- */
-static int  s_press_count   = 1;
-static bool s_multipress    = false;
+static int  s_press_count      = 1;
+static bool s_multipress       = false;
+static bool s_long_press_active = false;
 static const uint8_t kIdlePosition = 0;
 static const uint8_t kPressPosition = 1;
 
@@ -155,6 +156,35 @@ static void app_driver_button_multipress_complete(void *arg, void *data)
     s_multipress  = false;
 }
 
+/* Called once the long-press threshold is crossed while still holding */
+static void app_driver_button_long_press_start(void *arg, void *data)
+{
+    ESP_LOGI(TAG, "Long press start");
+    s_long_press_active = true;
+    uint16_t ep = button_endpoint_id;
+    chip::DeviceLayer::SystemLayer().ScheduleLambda([ep]() {
+        driver_set_switch_position(ep, kPressPosition);
+        switch_cluster::event::send_long_press(ep, kPressPosition);
+    });
+}
+
+/* Called when the button is released after a long press.
+   BUTTON_PRESS_UP does NOT reliably fire for long presses in iot_button,
+   so this is the only place we can cleanly reset the state machine. */
+static void app_driver_button_long_press_up(void *arg, void *data)
+{
+    ESP_LOGI(TAG, "Long press released");
+    uint16_t ep = button_endpoint_id;
+    chip::DeviceLayer::SystemLayer().ScheduleLambda([ep]() {
+        driver_set_switch_position(ep, kIdlePosition);
+        switch_cluster::event::send_long_release(ep, kPressPosition);
+    });
+    /* Reset state so the next press starts a fresh sequence */
+    s_long_press_active = false;
+    s_multipress        = false;
+    s_press_count       = 1;
+}
+
 esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_t endpoint_id, uint32_t cluster_id,
                                       uint32_t attribute_id, esp_matter_attr_val_t *val)
 {
@@ -189,6 +219,8 @@ app_driver_handle_t app_driver_button_init(gpio_button *button)
     iot_button_register_cb(handle, BUTTON_PRESS_UP,          NULL, app_driver_button_release,            NULL);
     iot_button_register_cb(handle, BUTTON_PRESS_REPEAT,      NULL, app_driver_button_multipress_ongoing, NULL);
     iot_button_register_cb(handle, BUTTON_PRESS_REPEAT_DONE, NULL, app_driver_button_multipress_complete,NULL);
+    iot_button_register_cb(handle, BUTTON_LONG_PRESS_START,  NULL, app_driver_button_long_press_start,   NULL);
+    iot_button_register_cb(handle, BUTTON_LONG_PRESS_UP,     NULL, app_driver_button_long_press_up,      NULL);
 
     return (app_driver_handle_t)handle;
 }
