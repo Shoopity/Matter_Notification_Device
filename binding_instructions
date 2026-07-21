@@ -16,6 +16,10 @@ chip-tool pairing code 101 03845945480
 # That device is now Node 101. Repeat for the other device, assigning a new Node ID and using its unique pairing code, e.g.:
 chip-tool pairing code 102 84863258401
 
+# Pay attention to which device you assigned the node number.
+# In this example I made node 101 the generic_switch and 102 the light.
+# This'll be important later when you're creating the actual binding.
+
 # Find your chip-tool Fabric Index. Because this is a secondary ecosystem, your fabric index will NOT be 1.
 # Run this read command and look at the "FabricIndex" value in the output:
 chip-tool accesscontrol read acl 101 0
