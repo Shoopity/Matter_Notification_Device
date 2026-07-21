@@ -6,6 +6,8 @@ This project contains the firmware for two custom smart home devices using ESP32
 
 These devices communicate locally via Wi-Fi (I might add Thread later) and support Matter Multi-Admin, allowing them to be controlled by Google Home (voice control/automations) and bound directly to each other for local, zero-latency execution.
 
+**NOTE:** I did all my work on a SEEED ESP32 C6 device.  I've tried to keep things device agnostic, but I'm horrible at doing that.  I hope you can follow these commands with whatever device you decide to use.
+
 ---
 
 ## Hardware Pinout Configurations
