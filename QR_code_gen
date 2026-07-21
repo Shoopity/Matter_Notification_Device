@@ -47,5 +47,5 @@ esptool.py -p /dev/ttyACM0 -b 460800 write_flash 0x3f0000 ./*.bin
 # To add this change to 
 # Copy (and rename) the bin file to the root of the project (where the CMake.txt file is), e.g.:
 # cp ~/qr_out/out/fff1_8000/42f7ae1b-e654-43a1-b097-a62f87aafb22/42f7ae1b-e654-43a1-b097-a62f87aafb22-partition.bin ~/code/Matter_Notification_Device/light/fctry.bin
-# and add the following to the CMake.ext file located in the
+# and add the following to the CMakeLists.txt file located in the
 # esptool_py_flash_project_image(fctry "${CMAKE_SOURCE_DIR}/fctry.bin" 0x3e0000)
