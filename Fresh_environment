@@ -78,7 +78,7 @@ git clone --recursive https://github.com/Shoopity/Matter_Notification_Device.git
 cd ~
 
 # Clean up project cache artifacts
-cd ~/code/Matter_Notification_Device/button
+cd ~/code/Matter_Notification_Device/generic_switch
 rm -rf build sdkconfig sdkconfig.old managed_components dependencies.lock .shadow-plugin-configured
 
 # Config flasher for a 4 MB partition
