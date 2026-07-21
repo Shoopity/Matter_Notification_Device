@@ -6,7 +6,9 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
+#include <esp_err.h>
 #include <esp_log.h>
+#include <esp_matter_client.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -67,6 +69,59 @@ static void onboard_led_set(bool on)
 using namespace chip::app::Clusters;
 using namespace esp_matter;
 using namespace esp_matter::cluster;
+
+/* Client Callbacks for outgoing commands */
+static void send_command_success_callback(void *context, const chip::app::ConcreteCommandPath &command_path,
+                                          const chip::app::StatusIB &status, chip::TLV::TLVReader *response_data)
+{
+    ESP_LOGI(TAG, "Send command success");
+}
+
+static void send_command_failure_callback(void *context, CHIP_ERROR error)
+{
+    ESP_LOGI(TAG, "Send command failure: err :%" CHIP_ERROR_FORMAT, error.Format());
+}
+
+void app_driver_client_invoke_command_callback(client::peer_device_t *peer_device, client::request_handle_t *req_handle,
+                                               void *priv_data)
+{
+    if (req_handle->type == esp_matter::client::INVOKE_CMD) {
+        char command_data_str[32];
+        if (req_handle->command_path.mClusterId == OnOff::Id) {
+            strcpy(command_data_str, "{}");
+        } else {
+            ESP_LOGE(TAG, "Unsupported cluster");
+            return;
+        }
+        client::interaction::invoke::send_request(NULL, peer_device, req_handle->command_path, command_data_str,
+                                                  send_command_success_callback, send_command_failure_callback,
+                                                  chip::NullOptional);
+    }
+}
+
+void app_driver_client_callback(client::peer_device_t *peer_device, client::request_handle_t *req_handle,
+                                void *priv_data)
+{
+    if (req_handle->type == esp_matter::client::INVOKE_CMD) {
+        app_driver_client_invoke_command_callback(peer_device, req_handle, priv_data);
+    }
+}
+
+void app_driver_client_group_invoke_command_callback(uint8_t fabric_index, client::request_handle_t *req_handle,
+                                                     void *priv_data)
+{
+    if (req_handle->type != esp_matter::client::INVOKE_CMD) {
+        return;
+    }
+    char command_data_str[32];
+    if (req_handle->command_path.mClusterId == OnOff::Id) {
+        strcpy(command_data_str, "{}");
+    } else {
+        ESP_LOGE(TAG, "Unsupported cluster");
+        return;
+    }
+    client::interaction::invoke::send_group_request(fabric_index, req_handle->command_path, command_data_str);
+}
 
 /* ---------- Momentary switch state ---------- */
 static int  s_press_count      = 1;
@@ -150,6 +205,16 @@ static void app_driver_button_multipress_complete(void *arg, void *data)
     chip::DeviceLayer::SystemLayer().ScheduleLambda([ep, total]() {
         driver_set_switch_position(ep, kIdlePosition);
         switch_cluster::event::send_multi_press_complete(ep, kPressPosition, total);
+
+        /* Send Toggle command if it was exactly 1 press */
+        if (total == 1) {
+            ESP_LOGI(TAG, "Single press complete, sending Toggle command");
+            client::request_handle_t req_handle;
+            req_handle.type = esp_matter::client::INVOKE_CMD;
+            req_handle.command_path.mClusterId = OnOff::Id;
+            req_handle.command_path.mCommandId = OnOff::Commands::Toggle::Id;
+            client::cluster_update(ep, &req_handle);
+        }
     });
 
     s_press_count = 1;

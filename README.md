@@ -1,10 +1,12 @@
-# ESP32-C6 Matter over Thread Notification Device
+# ESP32-C6 Matter over Wi-Fi Notification Device
 
 This project contains the firmware for two custom smart home devices using ESP32-C6 microcontrollers:
-1. **Button Device (`generic_switch`)**: A battery-powered (Sleepy End Device) Matter Switch. When pressed, it sends a command directly to the LED controller over Thread.
-2. **LED Device (`light`)**: A mains-powered (120V to 5V) Thread Router controlling WS2812 LEDs. When triggered, it blinks the LEDs for 5 seconds as a notification, then resets.
+1. **Button Device (`button`)**: A battery-powered (Sleepy End Device) Matter generic_switch. When pressed, it sends a command directly to the LED controller over Wi-Fi.
+2. **LED Device (`light`)**: A mains-powered (120V to 5V) Matter light, configured to control WS2812 LEDs. When triggered, it blinks the LEDs for 5 seconds as a notification, then resets.
 
-These devices communicate locally via Thread (e.g. bridged by an eero Pro 6e border router) and support Matter Multi-Admin, allowing them to be controlled by Google Home (voice control/automations) and bound directly to each other for local, zero-latency execution.
+These devices communicate locally via Wi-Fi (I might add Thread later) and support Matter Multi-Admin, allowing them to be controlled by Google Home (voice control/automations) and bound directly to each other for local, zero-latency execution.
+
+**NOTE:** I did all my work on a SEEED ESP32 C6 device.  I've tried to keep things device agnostic, but I'm horrible at doing that.  I hope you can follow these commands with whatever device you decide to use.  Pay attention to examples like telling you to use /dev/ttyACM0, as that will change depending when you bind the usb with usbipd.  Or other things like, my device has a single LED on it, so the firmware uses PWM to make it light up; if your board has a WS2811/12 on it, then you'll need to change the code so it uses those drivers.  I hope this contains enough info to get in the ballpark.
 
 ---
 
@@ -20,18 +22,9 @@ These devices communicate locally via Thread (e.g. bridged by an eero Pro 6e bor
 * **MCU**: ESP32-C6
 * **LED Data Pin**: GPIO 8 (Connects to the DI pin on the WS2812 strip).
 * **LED Count**: Configured in code (`LED_STRIP_NUM_LEDS`) to 8 by default.
-* **Power**: Mains-powered via a 120V to 5V transformer (always-on, acts as a Thread Router).
+* **Power**: Mains-powered via a 120V to 5V transformer (always-on, acts as a Thread Router... maybe?).
 
 ---
-
-## Thread-first setup notes
-
-These projects are now configured for Matter over Thread on ESP32-C6 by default. In practice this means:
-- the `generic_switch` project is set up as a sleepy end device (MTD),
-- the `light` project is set up as a full Thread device,
-- you will need a Thread border router or a Thread-capable network (for example an eero Pro 6e or similar) for commissioning and device-to-device communication.
-
-If you want to simplify the first bring-up, use the same Thread network for both devices and commission them from the same phone/network environment.
 
 ## Environment Setup & Prerequisites
 
@@ -107,11 +100,11 @@ Since both devices support **Multi-Admin**, you can easily pair them with Google
 
 ## Step 2: Commissioning into `chip-tool` (PC)
 
-To configure the direct, local binding between the button and the light, you must pair them with the developer utility **`chip-tool`** on your PC. You do not need a Thread radio on your PC; as long as your PC is on the same local network as the eero border router, traffic will route automatically.
+To configure the direct, local binding between the button and the light, you must pair them with the developer utility **`chip-tool`** on your PC. You do not need a Thread radio on your PC; as long as your PC is on the same local network as the border router, traffic will route automatically.
 
 Instead of re-pairing using Bluetooth on your PC, generate a pairing code from Google Home:
 1. Open the Google Home app, select the device (e.g., the LED device), go to Settings -> **Linked Matter apps** -> **Link another app**.
-2. This generates a temporary **numeric setup code** (e.g., `12345678901`).
+2. This generates a temporary **numeric setup code** (e.g., `12345678901`) (you might need to scroll to the right to see this option.
 3. Run the following command on your PC to pair the LED device (assigning it Node ID `100` on the `chip-tool` fabric):
    ```bash
    ./chip-tool pairing code 100 <NUMERIC_SETUP_CODE>

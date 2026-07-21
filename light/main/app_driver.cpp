@@ -7,6 +7,7 @@
 */
 
 #include <esp_log.h>
+#include <esp_matter_client.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,6 +24,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+using namespace chip::app::Clusters;
+using namespace esp_matter;
+
 // Seeed ESP32-C6 onboard LED pin?
 #define ONBOARD_LED_GPIO GPIO_NUM_15
 
@@ -32,6 +36,59 @@
 
 static const char *TAG = "app_driver";
 static bool onboard_led_initialized = false;
+
+/* Client Callbacks for outgoing commands */
+static void send_command_success_callback(void *context, const chip::app::ConcreteCommandPath &command_path,
+                                          const chip::app::StatusIB &status, chip::TLV::TLVReader *response_data)
+{
+    ESP_LOGI(TAG, "Send command success");
+}
+
+static void send_command_failure_callback(void *context, CHIP_ERROR error)
+{
+    ESP_LOGI(TAG, "Send command failure: err :%" CHIP_ERROR_FORMAT, error.Format());
+}
+
+void app_driver_client_invoke_command_callback(client::peer_device_t *peer_device, client::request_handle_t *req_handle,
+                                               void *priv_data)
+{
+    if (req_handle->type == esp_matter::client::INVOKE_CMD) {
+        char command_data_str[32];
+        if (req_handle->command_path.mClusterId == OnOff::Id) {
+            strcpy(command_data_str, "{}");
+        } else {
+            ESP_LOGE(TAG, "Unsupported cluster");
+            return;
+        }
+        client::interaction::invoke::send_request(NULL, peer_device, req_handle->command_path, command_data_str,
+                                                  send_command_success_callback, send_command_failure_callback,
+                                                  chip::NullOptional);
+    }
+}
+
+void app_driver_client_callback(client::peer_device_t *peer_device, client::request_handle_t *req_handle,
+                                void *priv_data)
+{
+    if (req_handle->type == esp_matter::client::INVOKE_CMD) {
+        app_driver_client_invoke_command_callback(peer_device, req_handle, priv_data);
+    }
+}
+
+void app_driver_client_group_invoke_command_callback(uint8_t fabric_index, client::request_handle_t *req_handle,
+                                                     void *priv_data)
+{
+    if (req_handle->type != esp_matter::client::INVOKE_CMD) {
+        return;
+    }
+    char command_data_str[32];
+    if (req_handle->command_path.mClusterId == OnOff::Id) {
+        strcpy(command_data_str, "{}");
+    } else {
+        ESP_LOGE(TAG, "Unsupported cluster");
+        return;
+    }
+    client::interaction::invoke::send_group_request(fabric_index, req_handle->command_path, command_data_str);
+}
 
 static void onboard_led_init(void)
 {
@@ -58,9 +115,6 @@ static void onboard_led_set(bool on)
     int read_back = gpio_get_level(ONBOARD_LED_GPIO);
     ESP_LOGI(TAG, "onboard_led_set(%s): GPIO=%d set_level=%d read_back=%d", on ? "ON" : "OFF", ONBOARD_LED_GPIO, level, read_back);
 }
-
-using namespace chip::app::Clusters;
-using namespace esp_matter;
 
 extern uint16_t light_endpoint_id;
 
@@ -171,6 +225,10 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
                 
                 bool is_on = val->val.b; // Get the boolean (true = on, false = off)
                 
+                client::request_handle_t req_handle;
+                req_handle.type = esp_matter::client::INVOKE_CMD;
+                req_handle.command_path.mClusterId = OnOff::Id;
+
                 if (is_on) {
                     ESP_LOGI(TAG, "OnOff: turning ON - starting 5-second blink notification");
                     // Set flag to allow blinking, then launch the notification task
@@ -178,6 +236,10 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
                     xTaskCreate(led_blink_task, "led_blink_task", 2048, NULL, 5, NULL);
                     // Also turn on the main light via the led_driver
                     err = app_driver_light_set_power(handle, val);
+
+                    // Send Matter On command to bound devices
+                    req_handle.command_path.mCommandId = OnOff::Commands::On::Id;
+                    client::cluster_update(light_endpoint_id, &req_handle);
                 } else {
                     ESP_LOGI(TAG, "OnOff: turning OFF - stopping any active blink and turning off light");
                     // Signal the task to stop blinking (if one is running)
@@ -186,6 +248,10 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
                     onboard_led_set(false);
                     // Also turn off the main light via the led_driver
                     err = app_driver_light_set_power(handle, val);
+
+                    // Send Matter Off command to bound devices
+                    req_handle.command_path.mCommandId = OnOff::Commands::Off::Id;
+                    client::cluster_update(light_endpoint_id, &req_handle);
                 }
             }
         } else if (cluster_id == LevelControl::Id) {

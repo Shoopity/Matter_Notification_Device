@@ -147,6 +147,7 @@ extern "C" void app_main()
     app_driver_button_init(NULL);         // Onboard BOOT Button (GPIO 9)
 
     /* Create Generic Switch endpoint 1 to represent the Button state */
+    /* Create Generic Switch endpoint 1 to represent the Button state */
     generic_switch::config_t button_config;
     button_config.switch_cluster.feature_flags = cluster::switch_cluster::feature::momentary_switch::get_id();
     endpoint_t *ep1 = generic_switch::create(node, &button_config, ENDPOINT_FLAG_NONE, NULL);
@@ -160,15 +161,27 @@ extern "C" void app_main()
     msm.multi_press_max = 5;
     cluster::switch_cluster::feature::momentary_switch_multi_press::add(switch_cluster, &msm);
 
+    /* Add Binding cluster to allow linking to other devices */
+    cluster::binding::config_t binding_config;
+    cluster::binding::create(ep1, &binding_config, CLUSTER_FLAG_SERVER | CLUSTER_FLAG_CLIENT);
+
+    /* Add On/Off client cluster to allow sending Toggle commands */
+    cluster::on_off::config_t on_off_client_config;
+    cluster::on_off::create(ep1, &on_off_client_config, CLUSTER_FLAG_CLIENT);
+
+    ESP_LOGI(TAG, "Button Endpoint created with ID %d", button_endpoint_id);
+
     /* Create On/Off Light endpoint 2 to represent the Onboard LED feedback */
     on_off_light::config_t led_config;
     led_config.on_off.on_off = false;
     endpoint_t *ep2 = on_off_light::create(node, &led_config, ENDPOINT_FLAG_NONE, NULL);
     ABORT_APP_ON_FAILURE(ep2 != nullptr, ESP_LOGE(TAG, "Failed to create LED endpoint"));
     led_endpoint_id = endpoint::get_id(ep2);
-
-    ESP_LOGI(TAG, "Button Endpoint created with ID %d", button_endpoint_id);
     ESP_LOGI(TAG, "LED Endpoint created with ID %d", led_endpoint_id);
+
+    /* Register client callbacks to handle outgoing Matter commands */
+    client::set_request_callback(app_driver_client_callback,
+                                 app_driver_client_group_invoke_command_callback, NULL);
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
     /* Set OpenThread platform config */

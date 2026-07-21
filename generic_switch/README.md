@@ -26,10 +26,10 @@ through menuconfig:
 Follow the steps mentioned [here](https://docs.espressif.com/projects/esp-matter/en/latest/esp32/insights.html)
 
 ## 2.Commissioning and Control
--   Commission the device with ``discriminator: 3840``and `` passcode: 20202021``
+-   Commission the device with ``discriminator: 3841``and `` passcode: 20202021``
 
     ```
-    chip-tool pairing ble-wifi 0x7283 [ssid] [password] 20202021 3840
+    chip-tool pairing ble-wifi 0x7283 [ssid] [password] 20202021 3841
     ```
 ### 2.1 Using the TagList Feature
 
