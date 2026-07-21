@@ -1,3 +1,8 @@
+# These are the steps I used to generate the QR codes as found in the QR Codes folder.
+# You can generate your own, use the URL to get a QR code on your screen when you monitor the device,
+# or use the ones in the folder... I think.  I'm really bad at propagating changes throughout my repo (I'm usually so excited I actually got something working, I forget).
+
+
 # Download the mft-tool, since it's no longer included in the repository
 python3 -m pip install esp-matter-mfg-tool
 
@@ -15,7 +20,7 @@ cd ~/qr_out
 # --discriminator should be unique, but doesn't have to be, between 0~4095.  It is used during pairing only, in case you power on multiple devices, it helps the system know which of the devices you're referring to
 # -passcode should be unique, but doesn't have to be.  It is ued to help prevent someone from hijacking the device.
 # E.G:
-esp-matter-mfg-tool -v 0xFFF1 -p 0x8000 --vendor-name "PPP" --product-name "PPP-Button" --discriminator 2222 --passcode 48331897
+esp-matter-mfg-tool -v 0xFFF1 -p 0x8000 --vendor-name "PPP" --product-name "PPP-Button" --discriminator 3842 --passcode 48331897
 
 # You will now have a new out folder, which consists of a folder name whatever you used for the -v and -p
 # You're mainly interested in the folder with the UUID, e.g.:
