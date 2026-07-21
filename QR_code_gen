@@ -27,16 +27,16 @@ cd ~/qr_out/out/fff1_8000/e2b52238-784f-4584-be9d-43d9b6a91c3b
 
 # Get the fctry offset from your project's partitions.csv, e.g.
 nano ~/code/Matter_Notification_Device/light/partitions.csv
-# Look for the row staring with "fctry", and the fourth column consisting of a memory address, e.g. 0x3F0000
+# Look for the row staring with "fctry", and the fourth column consisting of a memory address, e.g. 0x3E0000
 
 # Run the following command to write this info to the correct partition
 # esptool.py -p <port> -b <baud_rate> write_flash <partition_offset> path/to/bin_file.bin
 # * are accepted wildcards
 # E.G., if you're still in the directory containing the .bin:
-esptool.py -p /dev/ttyACM0 -b 460800 write_flash 0x3f0000 ./*.bin
+esptool.py -p /dev/ttyACM0 -b 460800 write_flash 0x3E0000 ./*.bin
 
 # Troubleshooting tool:
-# esptool.py -p /dev/ttyACM0 -b 460800 read_flash 0x3f0000 0x6000 verify_dump.bin
+# esptool.py -p /dev/ttyACM0 -b 460800 read_flash 0x3E0000 0x6000 verify_dump.bin
 # hexdump -C verify_dump.bin | head -n 20
 
 # To add this change to 
