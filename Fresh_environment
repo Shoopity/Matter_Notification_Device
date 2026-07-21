@@ -90,7 +90,7 @@ rm -rf build sdkconfig sdkconfig.old managed_components dependencies.lock .shado
 # echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"4MB\"" >> sdkconfig.defaults
 
 # Create an alias to run every time you open a command prompt; just type "load-matter" the next time you open a terminal
-echo "alias load-matter='export PATH=~/.local/bin:\$PATH && . ~/esp/esp-idf/export.sh && . ~/esp/esp-matter/export.sh'" >> ~/.bashrc
+echo 'alias load-matter="export PATH=~/.local/bin:\$PATH && . ~/esp/esp-idf/export.sh && . ~/esp/esp-matter/export.sh"' >> ~/.bashrc
 source ~/.bashrc
 
 # Because you gave access to the USB above, you'll need to log out/in; now's a good time to do that
