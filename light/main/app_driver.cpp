@@ -24,18 +24,26 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#ifdef CONFIG_BOARD_LED_TYPE_WS2812
+#include "led_strip.h"
+#endif
+
 using namespace chip::app::Clusters;
 using namespace esp_matter;
 
-// Seeed ESP32-C6 onboard LED pin?
-#define ONBOARD_LED_GPIO GPIO_NUM_15
+// Configurable board LED pin
+#define ONBOARD_LED_GPIO (gpio_num_t)CONFIG_BOARD_LED_PIN
 
-// Onboard LED output levels for this board.
+// Onboard LED output levels (for standard GPIO LED)
 #define ONBOARD_LED_ON_LEVEL  0
 #define ONBOARD_LED_OFF_LEVEL 1
 
 static const char *TAG = "app_driver";
 static bool onboard_led_initialized = false;
+
+#ifdef CONFIG_BOARD_LED_TYPE_WS2812
+static led_strip_handle_t led_strip;
+#endif
 
 /* Client Callbacks for outgoing commands */
 static void send_command_success_callback(void *context, const chip::app::ConcreteCommandPath &command_path,
@@ -96,6 +104,18 @@ static void onboard_led_init(void)
         return;
     }
 
+#ifdef CONFIG_BOARD_LED_TYPE_WS2812
+    led_strip_config_t strip_config = {};
+    strip_config.strip_gpio_num = ONBOARD_LED_GPIO;
+    strip_config.max_leds = 1;
+    
+    led_strip_rmt_config_t rmt_config = {};
+    rmt_config.resolution_hz = 10 * 1000 * 1000; // 10MHz
+    rmt_config.flags.with_dma = false;
+
+    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+    led_strip_clear(led_strip);
+#else
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
@@ -103,17 +123,28 @@ static void onboard_led_init(void)
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
+#endif
+
     onboard_led_initialized = true;
-    ESP_LOGI(TAG, "onboard_led_init: GPIO=%d configured as output", ONBOARD_LED_GPIO);
+    ESP_LOGI(TAG, "onboard_led_init: GPIO=%d configured", ONBOARD_LED_GPIO);
 }
 
 static void onboard_led_set(bool on)
 {
     onboard_led_init();
+#ifdef CONFIG_BOARD_LED_TYPE_WS2812
+    if (on) {
+        led_strip_set_pixel(led_strip, 0, 16, 16, 16);
+        led_strip_refresh(led_strip);
+    } else {
+        led_strip_clear(led_strip);
+    }
+    ESP_LOGI(TAG, "onboard_led_set(%s): WS2812 on GPIO=%d", on ? "ON" : "OFF", ONBOARD_LED_GPIO);
+#else
     int level = on ? ONBOARD_LED_ON_LEVEL : ONBOARD_LED_OFF_LEVEL;
     gpio_set_level(ONBOARD_LED_GPIO, level);
-    int read_back = gpio_get_level(ONBOARD_LED_GPIO);
-    ESP_LOGI(TAG, "onboard_led_set(%s): GPIO=%d set_level=%d read_back=%d", on ? "ON" : "OFF", ONBOARD_LED_GPIO, level, read_back);
+    ESP_LOGI(TAG, "onboard_led_set(%s): GPIO=%d set_level=%d", on ? "ON" : "OFF", ONBOARD_LED_GPIO, level);
+#endif
 }
 
 extern uint16_t light_endpoint_id;
@@ -340,7 +371,10 @@ app_driver_handle_t app_driver_button_init()
     /* Initialize button */
     button_handle_t handle = NULL;
     const button_config_t btn_cfg = {0};
-    const button_gpio_config_t btn_gpio_cfg = button_driver_get_config();
+    const button_gpio_config_t btn_gpio_cfg = {
+        .gpio_num = (gpio_num_t)CONFIG_BOARD_BUTTON_PIN,
+        .active_level = 0,
+    };
 
     if (iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg, &handle) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create button device");

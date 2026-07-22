@@ -9,3 +9,22 @@ menu "Example Configuration"
 
 endmenu
 
+menu "Board Configuration"
+    config BOARD_LED_PIN
+        int "Status LED Pin"
+        default 15
+        help
+            The GPIO pin for the status LED.
+
+    config BOARD_LED_TYPE_WS2812
+        bool "Addressable RGB (WS2812)"
+        default n
+        help
+            Select this if your board uses an addressable WS2812 for the status LED.
+
+    config BOARD_BUTTON_PIN
+        int "Physical Button Pin"
+        default 9
+        help
+            The GPIO pin for the physical button.
+endmenu

@@ -6,7 +6,7 @@ This project contains the firmware for two custom smart home devices using ESP32
 
 These devices communicate locally via Wi-Fi (I might add Thread later) and support Matter Multi-Admin, allowing them to be controlled by Google Home (voice control/automations) and bound directly to each other for local, zero-latency execution.
 
-**NOTE:** I did all my work on a SEEED ESP32 C6 device.  I've tried to keep things device agnostic, but I'm horrible at doing that.  I hope you can follow these commands with whatever device you decide to use.  Pay attention to examples like telling you to use /dev/ttyACM0, as that will change depending when you bind the usb with usbipd.  Or other things like, my device has a single LED on it, so the firmware uses PWM to make it light up; if your board has a WS2811/12 on it, then you'll need to change the code so it uses those drivers.  I hope this contains enough info to get in the ballpark.
+**NOTE:** I developed this on a SEEED ESP32 C6 device, but I have abstracted the hardware-specific details so you can easily use other ESP32 boards! Before building, you can run `idf.py menuconfig` and navigate to **Board Configuration** to select your specific LED pin, Button pin, and LED type (Standard GPIO vs WS2812). Pay attention to examples like telling you to use /dev/ttyACM0, as that will change depending when you bind the usb with usbipd.
 
 ---
 
@@ -14,13 +14,14 @@ These devices communicate locally via Wi-Fi (I might add Thread later) and suppo
 
 ### 1. Button Device
 * **MCU**: ESP32-C6
-* **Button Pin**: GPIO 9 (Connects to GND when pushed).
+* **Button Pin**: Configurable via `idf.py menuconfig` -> **Board Configuration** (Defaults to GPIO 9).
   * *Note: GPIO 9 is the default `BOOT` button on standard ESP32-C6 dev kits, making it easy to test without soldering!*
 * **Power**: Button Battery (CR2032) or small LiPo. CPU is configured for tickless idle and enters light sleep automatically when inactive, waking up instantly on button press.
 
 ### 2. LED Device
 * **MCU**: ESP32-C6
-* **LED Data Pin**: GPIO 8 (Connects to the DI pin on the WS2812 strip).
+* **LED Pin**: Configurable via `idf.py menuconfig` -> **Board Configuration** (Defaults to GPIO 15).
+* **LED Type**: Configurable via `idf.py menuconfig` -> **Board Configuration** (Standard GPIO or WS2812).
 * **LED Count**: Configured in code (`LED_STRIP_NUM_LEDS`) to 8 by default.
 * **Power**: Mains-powered via a 120V to 5V transformer (always-on, acts as a Thread Router... maybe?).
 

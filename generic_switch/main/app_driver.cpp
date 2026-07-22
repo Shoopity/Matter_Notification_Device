@@ -22,16 +22,17 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S3
-#define BUTTON_GPIO_PIN GPIO_NUM_0
-#else // CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32C2
-#define BUTTON_GPIO_PIN GPIO_NUM_9
+#ifdef CONFIG_BOARD_LED_TYPE_WS2812
+#include "led_strip.h"
 #endif
 
-// Seeed ESP32-C6 onboard LED pin
-#define ONBOARD_LED_GPIO GPIO_NUM_15
+// Configurable physical button pin
+#define BUTTON_GPIO_PIN (gpio_num_t)CONFIG_BOARD_BUTTON_PIN
 
-// Onboard LED output levels for this board.
+// Configurable board LED pin
+#define ONBOARD_LED_GPIO (gpio_num_t)CONFIG_BOARD_LED_PIN
+
+// Onboard LED output levels (for standard GPIO LED)
 #define ONBOARD_LED_ON_LEVEL  0
 #define ONBOARD_LED_OFF_LEVEL 1
 
@@ -41,12 +42,28 @@ uint16_t led_endpoint_id = 0;
 static const char *TAG = "app_driver";
 static bool onboard_led_initialized = false;
 
+#ifdef CONFIG_BOARD_LED_TYPE_WS2812
+static led_strip_handle_t led_strip;
+#endif
+
 static void onboard_led_init(void)
 {
     if (onboard_led_initialized) {
         return;
     }
 
+#ifdef CONFIG_BOARD_LED_TYPE_WS2812
+    led_strip_config_t strip_config = {};
+    strip_config.strip_gpio_num = ONBOARD_LED_GPIO;
+    strip_config.max_leds = 1;
+    
+    led_strip_rmt_config_t rmt_config = {};
+    rmt_config.resolution_hz = 10 * 1000 * 1000; // 10MHz
+    rmt_config.flags.with_dma = false;
+
+    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+    led_strip_clear(led_strip);
+#else
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
@@ -54,16 +71,28 @@ static void onboard_led_init(void)
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
+#endif
+
     onboard_led_initialized = true;
-    ESP_LOGI(TAG, "onboard_led_init: GPIO=%d configured as output", ONBOARD_LED_GPIO);
+    ESP_LOGI(TAG, "onboard_led_init: GPIO=%d configured", ONBOARD_LED_GPIO);
 }
 
 static void onboard_led_set(bool on)
 {
     onboard_led_init();
+#ifdef CONFIG_BOARD_LED_TYPE_WS2812
+    if (on) {
+        led_strip_set_pixel(led_strip, 0, 16, 16, 16);
+        led_strip_refresh(led_strip);
+    } else {
+        led_strip_clear(led_strip);
+    }
+    ESP_LOGI(TAG, "onboard_led_set(%s): WS2812 on GPIO=%d", on ? "ON" : "OFF", ONBOARD_LED_GPIO);
+#else
     int level = on ? ONBOARD_LED_ON_LEVEL : ONBOARD_LED_OFF_LEVEL;
     gpio_set_level(ONBOARD_LED_GPIO, level);
     ESP_LOGI(TAG, "onboard_led_set(%s): GPIO=%d", on ? "ON" : "OFF", ONBOARD_LED_GPIO);
+#endif
 }
 
 using namespace chip::app::Clusters;
@@ -269,8 +298,7 @@ app_driver_handle_t app_driver_button_init(gpio_button *button)
     button_handle_t handle = NULL;
     const button_config_t btn_cfg = {0};
 
-    /* Only the default GPIO 9 path is used — both the onboard BOOT button and
-       the external tactile switch are wired in parallel to GPIO 9. */
+    /* The button pin is now configurable via menuconfig */
     const button_gpio_config_t btn_gpio_cfg = {
         .gpio_num    = BUTTON_GPIO_PIN,
         .active_level = 0,

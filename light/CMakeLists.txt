@@ -34,7 +34,7 @@ if(NOT DEFINED ENV{ESP_MATTER_DEVICE_PATH})
     elseif("${IDF_TARGET}" STREQUAL "esp32p4")
         set(ENV{ESP_MATTER_DEVICE_PATH} $ENV{ESP_MATTER_PATH}/device_hal/device/hollow)
     else()
-        message(FATAL_ERROR "Unsupported IDF_TARGET")
+        message(FATAL_ERROR "Unsupported or empty IDF_TARGET ('${IDF_TARGET}'). Did you forget to run 'idf.py set-target <target>' first?")
     endif()
 endif(NOT DEFINED ENV{ESP_MATTER_DEVICE_PATH})
 
