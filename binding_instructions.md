@@ -1,51 +1,93 @@
-# ==============================================================================
-# MATTER CROSS-NODE BINDING CONFIGURATION GUIDE (WSL / chip-tool)
-# ==============================================================================
-# NOTE FOR WSL USERS: chip-tool defaults to storing encryption keys in /tmp. 
-# If WSL fully restarts, your controller state is wiped. To make your pairing 
-# permanent, append `--storage-directory ~/chip_storage` to ALL commands below.
-# ==============================================================================
 
-# After the devices have been commissioned to Google Home, you need to allow them to be managed by a second ecosystem.
-# In the Google Home app, open the device > tap the kebab (three dots) in the upper right > tap Linked Matter apps & services.
-# Tap Link apps & services > Use pairing code (you might have to scroll right to see this option).
+# Matter Cross-Node Binding Configuration Guide
+*(WSL / chip-tool)*
 
-# In WSL, type: chip-tool pairing code <NodeID> <11-digit number from the Google Home app>, e.g.:
+---
+
+> **⚠️ NOTE FOR WSL USERS**  
+> `chip-tool` defaults to storing encryption keys in `/tmp`. If WSL fully restarts, your controller state is wiped. To make your pairing permanent, append `--storage-directory ~/chip_storage` to **ALL** `chip-tool` commands below.
+
+---
+
+## Step 1: Obtain Pairing Codes from Primary Ecosystem
+
+After commissioning your devices to Google Home, you must generate a pairing code to allow them to be managed by a second ecosystem (`chip-tool`):
+
+1. Open the **Google Home** app.
+2. Open your target device and tap the **kebab menu (⋮)** in the upper right.
+3. Select **Linked Matter apps & services**.
+4. Tap **Link apps & services** > **Use pairing code** *(you may need to scroll right to see this option)*.
+
+---
+
+## Step 2: Commission Devices in `chip-tool`
+
+Pair each device in WSL using its unique pairing code from Google Home and assign each a unique Node ID.
+
+```bash
+# Pair Node 101 (Generic Switch)
 chip-tool pairing code 101 03845945480
 
-# That device is now Node 101. Repeat for the other device, assigning a new Node ID and using its unique pairing code, e.g.:
+# Pair Node 102 (Light)
 chip-tool pairing code 102 84863258401
+```
 
-# Pay attention to which device you assigned the node number.
-# In this example I made node 101 the generic_switch and 102 the light.
-# This'll be important later when you're creating the actual binding.
+> **Note:** Pay close attention to which device you assign each Node ID to! These can be assigned however you want, e.g.:
+> * **Node 101:** `generic_switch`
+> * **Node 102:** `light`
 
-# Find your chip-tool Fabric Index. Because this is a secondary ecosystem, your fabric index will NOT be 1.
-# Run this read command and look at the "FabricIndex" value in the output:
+---
+
+## Step 3: Find Your `chip-tool` Fabric Index
+
+Because `chip-tool` is acting as a secondary ecosystem, your fabric index will **not** be `1`. Run the following command to check your assigned Fabric Index:
+
+```bash
 chip-tool accesscontrol read acl 101 0
+```
 
-# The initial output will look like this near the end of the log. 
-# You are looking for the "FabricIndex" assigned to your chip-tool admin entry (usually 2 or 3):
-#   ACL: 1 entries
-#     [1]: {
-#       Privilege: 5
-#       AuthMode: 2
-#       Subjects: 1 entries
-#         [1]: 112233
-#       Targets: null
-#       FabricIndex: 3
-#     }
+Look for the `FabricIndex` value assigned to your `chip-tool` admin entry near the bottom of the output (usually `2` or `3`):
 
-# Update the ACLs on both devices so they permit cross-node commands.
-# IMPORTANT: Replace "3" in the fabricIndex fields below with the actual Fabric Index you found in the previous step.
-# Note: "112233" is the default chip-tool controller ID. Leave this so you don't lock yourself out of admin rights.
+```yaml
+ACL: 1 entries
+  [1]: {
+    Privilege: 5
+    AuthMode: 2
+    Subjects: 1 entries
+      [1]: 112233
+    Targets: null
+    FabricIndex: 3
+  }
+```
+
+---
+
+## Step 4: Update Access Control Lists (ACLs)
+
+Update the ACLs on both devices so they permit cross-node communication with each other.
+
+> **Important:** 
+> * Replace `3` in the `fabricIndex` fields below with the actual Fabric Index you identified in **Step 3**.
+> * Keep `112233` (the default `chip-tool` controller ID) as-is so you don't lock yourself out of admin rights.
+
+```bash
+# Allow Node 102 to send commands to Node 101
 chip-tool accesscontrol write acl '[{"fabricIndex": 3, "privilege": 5, "authMode": 2, "subjects": [112233], "targets": null}, {"fabricIndex": 3, "privilege": 3, "authMode": 2, "subjects": [102], "targets": null}]' 101 0
-chip-tool accesscontrol write acl '[{"fabricIndex": 3, "privilege": 5, "authMode": 2, "subjects": [112233], "targets": null}, {"fabricIndex": 3, "privilege": 3, "authMode": 2, "subjects": [101], "targets": null}]' 102 0
 
-# Now both devices have permission to talk to each other. Finally, you need to configure the routing (Bindings) 
-# to tell the devices exactly which endpoints and clusters to send commands to.
-# Node 101 (Endpoint 1, Switch) sends On/Off (Cluster 6) commands to Node 102 (Endpoint 1, Light):
+# Allow Node 101 to send commands to Node 102
+chip-tool accesscontrol write acl '[{"fabricIndex": 3, "privilege": 5, "authMode": 2, "subjects": [112233], "targets": null}, {"fabricIndex": 3, "privilege": 3, "authMode": 2, "subjects": [101], "targets": null}]' 102 0
+```
+
+---
+
+## Step 5: Configure Routing (Bindings)
+
+Now that both devices have permission to talk to each other, configure the bindings to route commands to the correct endpoints and clusters.
+
+```bash
+# Node 101 (Switch Device, Endpoint 1, the button) sends On/Off (Cluster 6) commands to Node 102 (Light device, Endpoint 1, the light)
 chip-tool binding write binding '[{"fabricIndex": 3, "node": 102, "endpoint": 1, "cluster": 6}]' 101 1
 
-# Node 102 (Endpoint 1, Light) sends On/Off (Cluster 6) state updates back to Node 101 (Endpoint 2, Light):
+# Node 102 (Light device, Endpoint 1, the light) sends On/Off (Cluster 6) state updates back to Node 101 (Switch Device, Endpoint 2, the light)
 chip-tool binding write binding '[{"fabricIndex": 3, "node": 101, "endpoint": 2, "cluster": 6}]' 102 1
+```
