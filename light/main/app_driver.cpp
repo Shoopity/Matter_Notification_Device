@@ -41,6 +41,12 @@ using namespace esp_matter;
 static const char *TAG = "app_driver";
 static bool onboard_led_initialized = false;
 
+#define CUSTOM_CLUSTER_ID 0x13370001
+#define CMD_SINGLE_PRESS 1
+#define CMD_DOUBLE_PRESS 2
+#define CMD_TRIPLE_PRESS 3
+#define CMD_LONG_PRESS 4
+
 #ifdef CONFIG_BOARD_LED_TYPE_WS2812
 static led_strip_handle_t led_strip;
 #endif
@@ -149,13 +155,6 @@ static void onboard_led_set(bool on)
 
 extern uint16_t light_endpoint_id;
 
-// Global variables to store current XY color coordinates
-static uint16_t current_x = 0;
-static uint16_t current_y = 0;
-
-// Flag to control whether the blink task should continue running
-static volatile bool blink_active = false;
-
 /* Do any conversions/remapping for the actual value here */
 static esp_err_t app_driver_light_set_power(led_driver_handle_t handle, esp_matter_attr_val_t *val)
 {
@@ -206,43 +205,87 @@ static void app_driver_button_toggle_cb(void *arg, void *data)
     attribute::update(endpoint_id, cluster_id, attribute_id, &val);
 }
 
-// Blink the on-board LED 4 times/sec, for 5 seconds
-// This task is responsive—it checks blink_active before each GPIO toggle
-// so it can exit immediately if the light is turned OFF
+// Global variables to store current XY color coordinates
+static uint16_t current_x = 0;
+static uint16_t current_y = 0;
+
+// Global variables for blink task
+static volatile bool blink_active = false;
+static int current_blink_pattern = 0; // 1: single, 2: double, 3: triple
+
 void led_blink_task(void *pvParameter) {
-    // 1. Setup the pin as an output once
     onboard_led_init();
-    
-    // 2. Loop 20 times (250ms per loop * 20 = 5 seconds)
-    for (int i = 0; i < 20; i++) {
-        // Check if blinking should continue. If OFF was called, exit immediately
-        if (!blink_active) {
-            ESP_LOGI(TAG, "Blink task: OFF command received, exiting early");
-            vTaskDelete(NULL);
-            return;
-        }
-        
+    int pattern = current_blink_pattern;
+    int duration_ms = 0;
+    int blinks = 0;
+
+    if (pattern == 1) { // Single: fast blink
+        duration_ms = 100;
+        blinks = 6; 
+    } else if (pattern == 2) { // Double: medium blink
+        duration_ms = 250;
+        blinks = 8;
+    } else if (pattern == 3) { // Triple: slow blink
+        duration_ms = 500;
+        blinks = 10;
+    } else {
         onboard_led_set(true);
-        vTaskDelay(pdMS_TO_TICKS(125));      // Wait 125ms
-        
-        // Check again before LED OFF to exit quickly if needed
+        vTaskDelete(NULL);
+        return;
+    }
+
+    for (int i = 0; i < blinks; i++) {
         if (!blink_active) {
-            ESP_LOGI(TAG, "Blink task: OFF command received during ON phase, exiting");
-            onboard_led_set(false); // Ensure LED is OFF before exiting
             vTaskDelete(NULL);
             return;
         }
+        onboard_led_set(true);
+        vTaskDelay(pdMS_TO_TICKS(duration_ms));
         
+        if (!blink_active) {
+            onboard_led_set(false);
+            vTaskDelete(NULL);
+            return;
+        }
         onboard_led_set(false);
-        vTaskDelay(pdMS_TO_TICKS(125));      // Wait 125ms
+        vTaskDelay(pdMS_TO_TICKS(duration_ms));
     }
     
-    // 3. After 5 seconds of blinking, leave the LED ON as the light state is ON
+    // Leave the LED ON as the light state is ON
     onboard_led_set(true);
-    ESP_LOGI(TAG, "Blink task: completed 5 seconds, LED now ON (light is ON)");
-    
-    // 4. Tasks must delete themselves when finished in FreeRTOS!
     vTaskDelete(NULL);
+}
+
+esp_err_t custom_cmd_handler(
+    const ConcreteCommandPath &command_path,
+    TLVReader &tlv_data,
+    void *opaque_ptr)
+{
+    uint32_t command_id = command_path.mCommandId;
+    ESP_LOGI(TAG, "Custom command received: %" PRIu32, command_id);
+
+    if (command_id == CMD_LONG_PRESS) {
+        ESP_LOGI(TAG, "Long Press - Turning OFF");
+        blink_active = false;
+        onboard_led_set(false);
+        
+        esp_matter_attr_val_t val = esp_matter_bool(false);
+        attribute::update(light_endpoint_id, OnOff::Id, OnOff::Attributes::OnOff::Id, &val);
+    } else if (command_id == CMD_SINGLE_PRESS || command_id == CMD_DOUBLE_PRESS || command_id == CMD_TRIPLE_PRESS) {
+        ESP_LOGI(TAG, "Press Command %" PRIu32 " - Starting blink pattern", command_id);
+        
+        blink_active = false;
+        vTaskDelay(pdMS_TO_TICKS(50)); // Give task time to exit
+        
+        current_blink_pattern = command_id;
+        blink_active = true;
+        xTaskCreate(led_blink_task, "led_blink_task", 2048, NULL, 5, NULL);
+        
+        esp_matter_attr_val_t val = esp_matter_bool(true);
+        attribute::update(light_endpoint_id, OnOff::Id, OnOff::Attributes::OnOff::Id, &val);
+    }
+    
+    return ESP_OK;
 }
 
 esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_t endpoint_id, uint32_t cluster_id,
@@ -261,11 +304,14 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
                 req_handle.command_path.mClusterId = OnOff::Id;
 
                 if (is_on) {
-                    ESP_LOGI(TAG, "OnOff: turning ON - starting 5-second blink notification");
-                    // Set flag to allow blinking, then launch the notification task
+                    ESP_LOGI(TAG, "OnOff: turning ON - starting blink notification");
+                    blink_active = false;
+                    vTaskDelay(pdMS_TO_TICKS(50));
+                    
+                    // Default to single press pattern if turned on via app
+                    current_blink_pattern = 1;
                     blink_active = true;
                     xTaskCreate(led_blink_task, "led_blink_task", 2048, NULL, 5, NULL);
-                    // Also turn on the main light via the led_driver
                     err = app_driver_light_set_power(handle, val);
 
                     // Send Matter On command to bound devices
@@ -273,11 +319,8 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
                     client::cluster_update(light_endpoint_id, &req_handle);
                 } else {
                     ESP_LOGI(TAG, "OnOff: turning OFF - stopping any active blink and turning off light");
-                    // Signal the task to stop blinking (if one is running)
                     blink_active = false;
-                    // Immediately turn the onboard LED off
                     onboard_led_set(false);
-                    // Also turn off the main light via the led_driver
                     err = app_driver_light_set_power(handle, val);
 
                     // Send Matter Off command to bound devices

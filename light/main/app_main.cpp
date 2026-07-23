@@ -52,6 +52,17 @@ using namespace esp_matter::attribute;
 using namespace esp_matter::endpoint;
 using namespace chip::app::Clusters;
 
+#define CUSTOM_CLUSTER_ID 0x13370001
+#define CMD_SINGLE_PRESS 1
+#define CMD_DOUBLE_PRESS 2
+#define CMD_TRIPLE_PRESS 3
+#define CMD_LONG_PRESS 4
+
+extern esp_err_t custom_cmd_handler(
+    const ConcreteCommandPath &command_path,
+    TLVReader &tlv_data,
+    void *opaque_ptr);
+
 constexpr auto k_timeout_seconds = 300;
 
 #ifdef CONFIG_ENABLE_SET_CERT_DECLARATION_API
@@ -213,6 +224,15 @@ extern "C" void app_main()
     /* Add On/Off client cluster to allow sending On/Off commands */
     cluster::on_off::config_t on_off_client_config;
     cluster::on_off::create(endpoint, &on_off_client_config, CLUSTER_FLAG_CLIENT);
+
+    /* Add custom cluster for button presses */
+    cluster_t *custom_cluster = cluster::create(endpoint, CUSTOM_CLUSTER_ID, CLUSTER_FLAG_SERVER);
+    if (custom_cluster) {
+        command::create(custom_cluster, CMD_SINGLE_PRESS, COMMAND_FLAG_ACCEPTED, custom_cmd_handler);
+        command::create(custom_cluster, CMD_DOUBLE_PRESS, COMMAND_FLAG_ACCEPTED, custom_cmd_handler);
+        command::create(custom_cluster, CMD_TRIPLE_PRESS, COMMAND_FLAG_ACCEPTED, custom_cmd_handler);
+        command::create(custom_cluster, CMD_LONG_PRESS, COMMAND_FLAG_ACCEPTED, custom_cmd_handler);
+    }
 
     light_endpoint_id = endpoint::get_id(endpoint);
     ESP_LOGI(TAG, "Light created with endpoint_id %d", light_endpoint_id);

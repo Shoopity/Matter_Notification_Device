@@ -39,6 +39,12 @@
 uint16_t button_endpoint_id = 0;
 uint16_t led_endpoint_id = 0;
 
+#define CUSTOM_CLUSTER_ID 0x13370001
+#define CMD_SINGLE_PRESS 1
+#define CMD_DOUBLE_PRESS 2
+#define CMD_TRIPLE_PRESS 3
+#define CMD_LONG_PRESS 4
+
 static const char *TAG = "app_driver";
 static bool onboard_led_initialized = false;
 
@@ -118,6 +124,8 @@ void app_driver_client_invoke_command_callback(client::peer_device_t *peer_devic
         char command_data_str[32];
         if (req_handle->command_path.mClusterId == OnOff::Id) {
             strcpy(command_data_str, "{}");
+        } else if (req_handle->command_path.mClusterId == CUSTOM_CLUSTER_ID) {
+            strcpy(command_data_str, "{}");
         } else {
             ESP_LOGE(TAG, "Unsupported cluster");
             return;
@@ -144,6 +152,8 @@ void app_driver_client_group_invoke_command_callback(uint8_t fabric_index, clien
     }
     char command_data_str[32];
     if (req_handle->command_path.mClusterId == OnOff::Id) {
+        strcpy(command_data_str, "{}");
+    } else if (req_handle->command_path.mClusterId == CUSTOM_CLUSTER_ID) {
         strcpy(command_data_str, "{}");
     } else {
         ESP_LOGE(TAG, "Unsupported cluster");
@@ -235,13 +245,15 @@ static void app_driver_button_multipress_complete(void *arg, void *data)
         driver_set_switch_position(ep, kIdlePosition);
         switch_cluster::event::send_multi_press_complete(ep, kPressPosition, total);
 
-        /* Send Toggle command if it was exactly 1 press */
-        if (total == 1) {
-            ESP_LOGI(TAG, "Single press complete, sending Toggle command");
+        /* Send custom command if it was 1 to 3 presses */
+        if (total >= 1 && total <= 3) {
+            ESP_LOGI(TAG, "Multi-press complete (%d presses), sending custom command", total);
             client::request_handle_t req_handle;
             req_handle.type = esp_matter::client::INVOKE_CMD;
-            req_handle.command_path.mClusterId = OnOff::Id;
-            req_handle.command_path.mCommandId = OnOff::Commands::Toggle::Id;
+            req_handle.command_path.mClusterId = CUSTOM_CLUSTER_ID;
+            if (total == 1) req_handle.command_path.mCommandId = CMD_SINGLE_PRESS;
+            else if (total == 2) req_handle.command_path.mCommandId = CMD_DOUBLE_PRESS;
+            else if (total == 3) req_handle.command_path.mCommandId = CMD_TRIPLE_PRESS;
             client::cluster_update(ep, &req_handle);
         }
     });
@@ -259,6 +271,13 @@ static void app_driver_button_long_press_start(void *arg, void *data)
     chip::DeviceLayer::SystemLayer().ScheduleLambda([ep]() {
         driver_set_switch_position(ep, kPressPosition);
         switch_cluster::event::send_long_press(ep, kPressPosition);
+
+        ESP_LOGI(TAG, "Long press start, sending Custom command");
+        client::request_handle_t req_handle;
+        req_handle.type = esp_matter::client::INVOKE_CMD;
+        req_handle.command_path.mClusterId = CUSTOM_CLUSTER_ID;
+        req_handle.command_path.mCommandId = CMD_LONG_PRESS;
+        client::cluster_update(ep, &req_handle);
     });
 }
 
