@@ -25,7 +25,7 @@ idf.py set-target esp32c6
 
 ## Standard Build Cycle
 
-1. **Configure the Project (Optional):**
+1. **Configure the Project (Optional):** (you must run this after every clean, unless the defaults are acceptable)
 	To change board settings, pins, or LED types:
 	```bash
 	idf.py menuconfig
