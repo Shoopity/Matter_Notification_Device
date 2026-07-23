@@ -24,11 +24,13 @@ After commissioning your devices to Google Home, you must generate a pairing cod
 
 Pair each device in WSL using its unique pairing code from Google Home and assign each a unique Node ID.
 
+Pair Node 101 (Generic Switch)
 ```bash
-# Pair Node 101 (Generic Switch)
 chip-tool pairing code 101 03845945480
+```
 
-# Pair Node 102 (Light)
+Pair Node 102 (Light)
+```bash
 chip-tool pairing code 102 84863258401
 ```
 
