@@ -3,6 +3,12 @@
 
 This guide provides a quick reference for common commands used when building, flashing, and cleaning this ESP-IDF project.
 
+## Startup
+Any time you start up WSL, you probably need to run the following; it doesn't hurt to run it even if you don't.  This command is something you built if you followed the Fresh_environment document; it's not a standard command.
+```base
+load-matter
+```
+
 ## Full Clean (Deep Clean)
 
 If you are experiencing build issues, changing targets, or need to reset your environment to a clean state, run this command inside your project directory (e.g., `light/` or `generic_switch/`):
