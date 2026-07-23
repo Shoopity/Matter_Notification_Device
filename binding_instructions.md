@@ -67,7 +67,7 @@ ACL: 1 entries
 Update the ACLs on both devices so they permit cross-node communication with each other.
 
 > **Important:** 
-> * Replace `3` in the `fabricIndex` fields below with the actual Fabric Index you identified in **Step 3**.
+> * Replace `2` in the `fabricIndex` fields below with the actual Fabric Index you identified in **Step 3**.
 > * Keep `112233` (the default `chip-tool` controller ID) as-is so you don't lock yourself out of admin rights.
 
 ```bash
