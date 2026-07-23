@@ -34,4 +34,11 @@ menu "Board Configuration"
         default 9
         help
             The GPIO pin for the physical button.
+
+    config BOARD_MATTER_DISCRIMINATOR
+        int "Matter Setup Discriminator"
+        default 3842
+        help
+            The 12-bit Matter setup discriminator (0-4095) used for pairing. 
+            Change this if you are deploying multiple devices to avoid conflicts.
 endmenu

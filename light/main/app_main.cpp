@@ -268,13 +268,13 @@ extern "C" void app_main()
     /* Use the modern provider to GET the discriminator */
     chip::DeviceLayer::GetCommissionableDataProvider()->GetSetupDiscriminator(current_discriminator);
     
-    if (current_discriminator != 3841) {
+    if (current_discriminator != CONFIG_BOARD_MATTER_DISCRIMINATOR) {
         ESP_LOGI(TAG, "Overriding hardcoded discriminator in NVS...");
         
         /* Bypass the missing setter and write directly to the ESP32 NVS backend */
         chip::DeviceLayer::Internal::ESP32Config::WriteConfigValue(
             chip::DeviceLayer::Internal::ESP32Config::kConfigKey_SetupDiscriminator,
-            static_cast<uint32_t>(3841)
+            static_cast<uint32_t>(CONFIG_BOARD_MATTER_DISCRIMINATOR)
         );
         
         ESP_LOGI(TAG, "Rebooting to apply new discriminator...");
