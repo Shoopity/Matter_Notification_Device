@@ -88,7 +88,7 @@ chip-tool accesscontrol write acl '[{"fabricIndex": 2, "privilege": 5, "authMode
 
 Now that both devices have permission to talk to each other, configure the bindings to route commands to the correct endpoints and clusters.
 
-# Node 101 (Switch Device, Endpoint 1, the button) sends On/Off (Cluster 6) commands to Node 102 (Light device, Endpoint 1, the light)
+Node 101 (Switch Device, Endpoint 1, the button) sends On/Off (Cluster 6) commands to Node 102 (Light device, Endpoint 1, the light)
 ```bash
 chip-tool binding write binding '[{"fabricIndex": 2, "node": 102, "endpoint": 1, "cluster": 6}]' 101 1
 ```
