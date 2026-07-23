@@ -56,7 +56,7 @@ ACL: 1 entries
     Subjects: 1 entries
       [1]: 112233
     Targets: null
-    FabricIndex: 3
+    FabricIndex: 2
   }
 ```
 
@@ -72,10 +72,10 @@ Update the ACLs on both devices so they permit cross-node communication with eac
 
 ```bash
 # Allow Node 102 to send commands to Node 101
-chip-tool accesscontrol write acl '[{"fabricIndex": 3, "privilege": 5, "authMode": 2, "subjects": [112233], "targets": null}, {"fabricIndex": 3, "privilege": 3, "authMode": 2, "subjects": [102], "targets": null}]' 101 0
+chip-tool accesscontrol write acl '[{"fabricIndex": 2, "privilege": 5, "authMode": 2, "subjects": [112233], "targets": null}, {"fabricIndex": 2, "privilege": 3, "authMode": 2, "subjects": [102], "targets": null}]' 101 0
 
 # Allow Node 101 to send commands to Node 102
-chip-tool accesscontrol write acl '[{"fabricIndex": 3, "privilege": 5, "authMode": 2, "subjects": [112233], "targets": null}, {"fabricIndex": 3, "privilege": 3, "authMode": 2, "subjects": [101], "targets": null}]' 102 0
+chip-tool accesscontrol write acl '[{"fabricIndex": 2, "privilege": 5, "authMode": 2, "subjects": [112233], "targets": null}, {"fabricIndex": 2, "privilege": 3, "authMode": 2, "subjects": [101], "targets": null}]' 102 0
 ```
 
 ---
@@ -86,8 +86,8 @@ Now that both devices have permission to talk to each other, configure the bindi
 
 ```bash
 # Node 101 (Switch Device, Endpoint 1, the button) sends On/Off (Cluster 6) commands to Node 102 (Light device, Endpoint 1, the light)
-chip-tool binding write binding '[{"fabricIndex": 3, "node": 102, "endpoint": 1, "cluster": 6}]' 101 1
+chip-tool binding write binding '[{"fabricIndex": 2, "node": 102, "endpoint": 1, "cluster": 6}]' 101 1
 
 # Node 102 (Light device, Endpoint 1, the light) sends On/Off (Cluster 6) state updates back to Node 101 (Switch Device, Endpoint 2, the light)
-chip-tool binding write binding '[{"fabricIndex": 3, "node": 101, "endpoint": 2, "cluster": 6}]' 102 1
+chip-tool binding write binding '[{"fabricIndex": 2, "node": 101, "endpoint": 2, "cluster": 6}]' 102 1
 ```
