@@ -1,3 +1,4 @@
+
 # ESP-IDF Quick Reference Commands
 
 This guide provides a quick reference for common commands used when building, flashing, and cleaning this ESP-IDF project.
@@ -24,38 +25,38 @@ idf.py set-target esp32c6
 
 ## Standard Build Cycle
 
-**1. Configure the Project (Optional):**
-To change board settings, pins, or LED types:
-```bash
-idf.py menuconfig
-```
-
-**2. Build the Firmware:**
-```bash
-idf.py build
-```
-
-**3. Flash the Device:**
-Replace `COMx` (Windows) or `/dev/ttyUSB0` / `/dev/ttyACM0` (Linux/Mac) with your device's serial port:
-```bash
-idf.py -p /dev/ttyACM0 flash
-```
-
-**4. Monitor Logs:**
-To view the serial output (useful for getting the Matter QR code or debugging):
-```bash
-idf.py -p /dev/ttyACM0 monitor
-```
-*(To exit the monitor, press `Ctrl + ]`)*
-
-**5. Flash & Monitor (Combined):**
-```bash
-idf.py -p /dev/ttyACM0 flash monitor
-```
-
-## Useful ESP-Matter Commands
-
-If you need to completely erase the flash (useful to clear Matter commissioning data before repairing):
-```bash
-idf.py -p /dev/ttyACM0 erase-flash
-```
+1. **Configure the Project (Optional):**
+	To change board settings, pins, or LED types:
+	```bash
+	idf.py menuconfig
+	```
+1. **Clear the device**
+	idf.py erase-flash [optional:] -p \<usb port> (useful if you have multiple boards you're flashing at once)
+	```bash
+	idf.py erase-flash
+	```
+	```bash
+	idf.py erase-flash -p /dev/ttyACM0
+	```
+1. **Build the Firmware:** (make sure you're in the folder you want to build/flash)
+	```bash
+	idf.py build
+	```
+1. **Flash the Device:**
+	idf.py flash [optional:] -p \<usb port>
+	```bash
+	idf.py flash
+	```
+	```bash
+	idf.py flash -p /dev/ttyACM0
+	```
+1. **Monitor Logs:**
+	To view the serial output (useful for getting the Matter QR code or debugging):
+	```bash
+	idf.py monitor -p /dev/ttyACM0
+	```
+	*(To exit the monitor, press `Ctrl + ]`)*
+1. **Erase, Build, Flash & Monitor (Combined):**
+	```bash
+	idf.py erase-flash build flash monitor -p /dev/ttyACM0
+	```
