@@ -62,7 +62,7 @@ idf.py set-target esp32c6
 	idf.py monitor -p /dev/ttyACM0
 	```
 	*(To exit the monitor, press `Ctrl + ]`)*
-1. **Erase, Build, Flash & Monitor (Combined):**
+1. **Erase, Build, Flash & Monitor (Combined): (Make sure you've got the correct -p targeted**
 	```bash
 	idf.py erase-flash build flash monitor -p /dev/ttyACM0
 	```
