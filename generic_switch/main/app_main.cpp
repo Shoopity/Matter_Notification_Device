@@ -39,6 +39,8 @@ using namespace esp_matter::endpoint;
 using namespace esp_matter::cluster;
 using namespace chip::app::Clusters;
 
+#define CUSTOM_CLUSTER_ID 0x13370001
+
 #if CONFIG_ENABLE_ESP_INSIGHTS_TRACE
 extern const char insights_auth_key_start[] asm("_binary_insights_auth_key_txt_start");
 extern const char insights_auth_key_end[] asm("_binary_insights_auth_key_txt_end");
@@ -147,7 +149,6 @@ extern "C" void app_main()
     app_driver_button_init(NULL);         // Onboard BOOT Button (GPIO 9)
 
     /* Create Generic Switch endpoint 1 to represent the Button state */
-    /* Create Generic Switch endpoint 1 to represent the Button state */
     generic_switch::config_t button_config;
     button_config.switch_cluster.feature_flags = cluster::switch_cluster::feature::momentary_switch::get_id();
     endpoint_t *ep1 = generic_switch::create(node, &button_config, ENDPOINT_FLAG_NONE, NULL);
@@ -165,9 +166,12 @@ extern "C" void app_main()
     cluster::binding::config_t binding_config;
     cluster::binding::create(ep1, &binding_config, CLUSTER_FLAG_SERVER | CLUSTER_FLAG_CLIENT);
 
-    /* Add On/Off client cluster to allow sending Toggle commands */
+    /* Add On/Off client cluster (still needed for light->switch LED feedback path) */
     cluster::on_off::config_t on_off_client_config;
     cluster::on_off::create(ep1, &on_off_client_config, CLUSTER_FLAG_CLIENT);
+
+    /* Add custom cluster as client so the binding stack accepts entries for it */
+    cluster::create(ep1, CUSTOM_CLUSTER_ID, CLUSTER_FLAG_CLIENT);
 
     ESP_LOGI(TAG, "Button Endpoint created with ID %d", button_endpoint_id);
 

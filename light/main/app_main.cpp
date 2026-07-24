@@ -228,10 +228,10 @@ extern "C" void app_main()
     /* Add custom cluster for button presses */
     cluster_t *custom_cluster = cluster::create(endpoint, CUSTOM_CLUSTER_ID, CLUSTER_FLAG_SERVER);
     if (custom_cluster) {
-        command::create(custom_cluster, CMD_SINGLE_PRESS, COMMAND_FLAG_ACCEPTED, custom_cmd_handler);
-        command::create(custom_cluster, CMD_DOUBLE_PRESS, COMMAND_FLAG_ACCEPTED, custom_cmd_handler);
-        command::create(custom_cluster, CMD_TRIPLE_PRESS, COMMAND_FLAG_ACCEPTED, custom_cmd_handler);
-        command::create(custom_cluster, CMD_LONG_PRESS, COMMAND_FLAG_ACCEPTED, custom_cmd_handler);
+        command::create(custom_cluster, CMD_SINGLE_PRESS, COMMAND_FLAG_ACCEPTED | COMMAND_FLAG_CUSTOM, custom_cmd_handler);
+        command::create(custom_cluster, CMD_DOUBLE_PRESS, COMMAND_FLAG_ACCEPTED | COMMAND_FLAG_CUSTOM, custom_cmd_handler);
+        command::create(custom_cluster, CMD_TRIPLE_PRESS, COMMAND_FLAG_ACCEPTED | COMMAND_FLAG_CUSTOM, custom_cmd_handler);
+        command::create(custom_cluster, CMD_LONG_PRESS,   COMMAND_FLAG_ACCEPTED | COMMAND_FLAG_CUSTOM, custom_cmd_handler);
     }
 
     light_endpoint_id = endpoint::get_id(endpoint);
